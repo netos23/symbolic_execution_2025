@@ -4,9 +4,8 @@ package z3wrapper
 
 import (
 	"fmt"
+	"github.com/ebukreev/go-z3/z3"
 	"strconv"
-
-	"github.com/aclements/go-z3/z3"
 )
 
 // Solver представляет обёртку над Z3 solver

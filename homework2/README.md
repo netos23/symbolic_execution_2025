@@ -1,11 +1,12 @@
 # Домашнее задание 2: Символьные выражения и трансляция в SMT
 
 ## Цель
-Создать систему символьных выражений для представления вычислений и реализовать их трансляцию в SMT-формулы для Z3 solver. Фокус на выражениях (expressions), а не на инструкциях (statements).
+Создать систему символьных выражений для представления вычислений и реализовать их трансляцию в SMT-формулы для Z3 solver. 
+Фокус на выражениях (expressions), а не на инструкциях (statements).
 
-## ⚠️ Важно
+## Важно
 Весь код должен быть реализован в общей кодовой базе: `../internal/`
-Это задание развивает модули symbolic и translator, которые работают совместно с CFG из ДЗ1.
+Это задание позволяет реализовать модули symbolic и translator, которые работают совместно с SSA из ДЗ_1.
 
 ## Теоретические основы
 
@@ -43,50 +44,6 @@ const (
     ArrayType
     // Добавьте другие типы по необходимости
 )
-```
-
-**Требуемые типы выражений:**
-
-1. **Переменные:**
-```go
-type SymbolicVariable struct {
-    Name string
-    Type ExpressionType
-}
-```
-
-2. **Константы:**
-```go
-type IntConstant struct {
-    Value int64
-}
-
-type BoolConstant struct {
-    Value bool
-}
-```
-
-3. **Арифметические операции:**
-```go
-type BinaryOperation struct {
-    Left     SymbolicExpression
-    Right    SymbolicExpression
-    Operator BinaryOperator
-}
-
-type BinaryOperator int
-// ADD, SUB, MUL, DIV, MOD, EQ, LT, LE, GT, GE, NE
-```
-
-4. **Логические операции:**
-```go
-type LogicalOperation struct {
-    Operands []SymbolicExpression
-    Operator LogicalOperator
-}
-
-type LogicalOperator int
-// AND, OR, NOT, IMPLIES
 ```
 
 ### Задание 2.2: Visitor Pattern для обхода выражений
@@ -170,67 +127,9 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *BinaryOperation) interface{} 
 }
 ```
 
-### Задание 2.4: Построение символьных выражений
+### Задание 2.4: Интеграция и тестирование
 
-Создайте компонент для построения символьных выражений из простых значений:
-
-```go
-type ExpressionBuilder struct {
-    // Вспомогательные методы для создания выражений
-}
-
-func (eb *ExpressionBuilder) BuildVariable(name string, t ExpressionType) SymbolicExpression {
-    return &SymbolicVariable{Name: name, Type: t}
-}
-
-func (eb *ExpressionBuilder) BuildArithmeticExpr(left, right SymbolicExpression, op BinaryOperator) SymbolicExpression {
-    return &BinaryOperation{
-        Left:     left,
-        Right:    right,
-        Operator: op,
-    }
-}
-
-func (eb *ExpressionBuilder) BuildLogicalExpr(operands []SymbolicExpression, op LogicalOperator) SymbolicExpression {
-    return &LogicalOperation{
-        Operands: operands,
-        Operator: op,
-    }
-}
-```
-
-### Задание 2.5: Интеграция и тестирование
-
-Создайте тесты для демонстрации работы с выражениями:
-
-```go
-func TestExpressionTranslation(t *testing.T) {
-    // 1. Создаём символьные выражения вручную
-    builder := &ExpressionBuilder{}
-    
-    x := builder.BuildVariable("x", IntType)
-    y := builder.BuildVariable("y", IntType)
-    five := &IntConstant{Value: 5}
-    
-    // Выражение: x + y > 5
-    sum := builder.BuildArithmeticExpr(x, y, ADD)
-    condition := builder.BuildArithmeticExpr(sum, five, GT)
-    
-    // 2. Транслировать в Z3
-    ctx := z3.NewContext(z3.NewConfig())
-    solver := z3.NewSolver(ctx)
-    translator := NewZ3Translator(ctx, solver)
-    
-    z3Expr := condition.Accept(translator)
-    solver.Assert(z3Expr.(z3.Bool))
-    
-    // 3. Проверить выполнимость
-    if solver.Check() == z3.True {
-        model := solver.Model()
-        fmt.Printf("Найдено решение: %v\n", model)
-    }
-}
-```
+Создайте тесты для демонстрации работы с выражениями и их трансляцией в SMT.
 
 ## Что сдавать
 
@@ -239,15 +138,11 @@ func TestExpressionTranslation(t *testing.T) {
 - `../internal/translator/z3_translator.go` - реализуйте трансляцию выражений в Z3
 
 **В папке homework2:**
-- `main.go` - демонстрационная программа (уже создана)
-- `examples/test_functions.go` - тестовые функции (уже созданы)
-- `REPORT.md` - отчёт о выполненной работе
 
 ```  
 homework2/
 ├── examples/
 │   └── test_functions.go    // Функции для тестирования
 ├── main.go                  // Демонстрация (использует internal/*)
-├── REPORT.md                // Ваш отчёт
 └── README.md
 ```

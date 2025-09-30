@@ -101,7 +101,7 @@ func TestSolverPushPop(t *testing.T) {
 	}
 
 	// Возвращаемся к предыдущему состоянию
-	solver.Pop(1)
+	solver.Pop()
 
 	// Проверяем, что снова выполнимо
 	sat3, _ := solver.IsSatisfiable()

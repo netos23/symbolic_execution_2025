@@ -2,9 +2,8 @@
 package translator
 
 import (
+	"github.com/ebukreev/go-z3/z3"
 	"symbolic-execution-course/internal/symbolic"
-
-	"github.com/aclements/go-z3/z3"
 )
 
 // Z3Translator транслирует символьные выражения в Z3 формулы
