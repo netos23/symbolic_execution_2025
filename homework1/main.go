@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"symbolic-execution-course/internal/ssa"
 )
@@ -32,5 +33,6 @@ func testFunction(x int) int {
 	if err != nil {
 		log.Fatalf("Ошибка построения SSA: %v", err)
 	}
+	graph.WriteTo(os.Stdout)
 	fmt.Printf("CFG построен для функции с %d блоками\n", len(graph.Blocks))
 }
