@@ -130,6 +130,31 @@ func (ic *IntConstant) Accept(visitor Visitor) interface{} {
 	return visitor.VisitIntConstant(ic)
 }
 
+// FloatConstant представляет целочисленную константу
+type FloatConstant struct {
+	Value float64
+}
+
+// NewFloatConstant создаёт новую целочисленную константу
+func NewFloatConstant(value float64) *FloatConstant {
+	return &FloatConstant{Value: value}
+}
+
+// Type возвращает тип константы
+func (ic *FloatConstant) Type() ExpressionType {
+	return FloatType
+}
+
+// String возвращает строковое представление константы
+func (ic *FloatConstant) String() string {
+	return fmt.Sprintf("%f", ic.Value)
+}
+
+// Accept реализует Visitor pattern
+func (ic *FloatConstant) Accept(visitor Visitor) interface{} {
+	return visitor.VisitFloatConstant(ic)
+}
+
 // BoolConstant представляет булеву константу
 type BoolConstant struct {
 	Value bool
@@ -204,6 +229,10 @@ func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *Bina
 			return nil
 		}
 	case MOD:
+		if left.Type() == FloatType {
+			return nil
+		}
+
 		if left.Type() == BoolType {
 			return nil
 		}
@@ -407,6 +436,8 @@ const (
 	PLUS UnaryOperator = iota
 	MINUS
 	CARET
+	INCREMENT
+	DECREMENT
 )
 
 func (op UnaryOperator) String() string {
@@ -417,6 +448,10 @@ func (op UnaryOperator) String() string {
 		return "-"
 	case CARET:
 		return "^"
+	case INCREMENT:
+		return "++"
+	case DECREMENT:
+		return "--"
 	default:
 		return "unknown"
 	}
@@ -434,8 +469,27 @@ type UnaryOperation struct {
 
 // NewUnaryOperation создаёт новую бинарную операцию
 func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOperation {
-	if operand.Type() != IntType {
-		return nil
+	switch op {
+	case PLUS:
+		if operand.Type() != IntType || operand.Type() != FloatType {
+			return nil
+		}
+	case MINUS:
+		if operand.Type() != IntType || operand.Type() != FloatType {
+			return nil
+		}
+	case CARET:
+		if operand.Type() != IntType {
+			return nil
+		}
+	case INCREMENT:
+		if operand.Type() != IntType {
+			return nil
+		}
+	case DECREMENT:
+		if operand.Type() != IntType {
+			return nil
+		}
 	}
 
 	return &UnaryOperation{
@@ -451,7 +505,12 @@ func (uo *UnaryOperation) Type() ExpressionType {
 
 // String возвращает строковое представление операции
 func (uo *UnaryOperation) String() string {
-	return uo.Operand.String() + uo.Operator.String()
+	switch uo.Operator {
+	case PLUS, MINUS, CARET:
+		return uo.Operator.String() + uo.Operand.String()
+	default:
+		return uo.Operand.String() + uo.Operator.String()
+	}
 }
 
 // Accept реализует Visitor pattern
@@ -484,6 +543,33 @@ func (as *ArraySelect) String() string {
 // Accept реализует Visitor pattern
 func (as *ArraySelect) Accept(v Visitor) interface{} { return v.VisitArraySelect(as) }
 
+// - ArrayAccess (доступ к элементам массива: arr[index])
+
+type ArrayStore struct {
+	Array ArraySymbolicVariable
+	Index SymbolicExpression
+	Value SymbolicExpression
+}
+
+// NewArrayStore создаёт выражение arr[idx]
+func NewArrayStore(arr ArraySymbolicVariable, idx SymbolicExpression, v SymbolicExpression) *ArrayStore {
+
+	return &ArrayStore{Array: arr, Index: idx, Value: v}
+}
+
+// Type возвращает тип элемента массива
+func (as *ArrayStore) Type() ExpressionType {
+	return as.Array.Type()
+}
+
+// String:  arr[idx]
+func (as *ArrayStore) String() string {
+	return fmt.Sprintf("(%s[%s] = %s)", as.Array.String(), as.Index.String(), as.Value.String())
+}
+
+// Accept реализует Visitor pattern
+func (as *ArrayStore) Accept(v Visitor) interface{} { return v.VisitArrayStore(as) }
+
 // - FunctionCall (вызовы функций: f(x, y))
 
 type Function struct {
@@ -492,7 +578,7 @@ type Function struct {
 	ReturnType GenericType
 }
 
-// NewArraySelect создаёт выражение arr[idx]
+// NewFunction создаёт выражение arr[idx]
 func NewFunction(name string, args []SymbolicVariable, returnType GenericType) *Function {
 	return &Function{
 		Name:       name,

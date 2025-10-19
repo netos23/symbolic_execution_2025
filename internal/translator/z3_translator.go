@@ -75,6 +75,13 @@ func (zt *Z3Translator) VisitIntConstant(expr *symbolic.IntConstant) interface{}
 	return zt.ctx.FromBigInt(big.NewInt(expr.Value), zt.ctx.IntSort())
 }
 
+// VisitIntConstant транслирует целочисленную константу в Z3
+func (zt *Z3Translator) VisitFloatConstant(expr *symbolic.FloatConstant) interface{} {
+	// Создать Z3 константу с помощью zt.ctx.FromBigInt или аналогичного метода
+
+	return zt.ctx.FromFloat64(expr.Value, zt.ctx.FloatSort(11, 53))
+}
+
 // VisitBoolConstant транслирует булеву константу в Z3
 func (zt *Z3Translator) VisitBoolConstant(expr *symbolic.BoolConstant) interface{} {
 	// Использовать zt.ctx.FromBool для создания Z3 булевой константы
@@ -97,20 +104,21 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 	r := expr.Right.Accept(zt)
 
 	switch expr.Operator {
-	case symbolic.ADD:
-		return l.(z3.Int).Add(r.(z3.Int))
-	case symbolic.SUB:
-		return l.(z3.Int).Sub(r.(z3.Int))
-	case symbolic.MUL:
-		return l.(z3.Int).Mul(r.(z3.Int))
-	case symbolic.DIV:
-		return l.(z3.Int).Div(r.(z3.Int))
-	case symbolic.MOD:
-		return l.(z3.Int).Mod(r.(z3.Int))
+
 	}
 
 	if expr.Left.Type() == symbolic.IntType {
 		switch expr.Operator {
+		case symbolic.ADD:
+			return l.(z3.Int).Add(r.(z3.Int))
+		case symbolic.SUB:
+			return l.(z3.Int).Sub(r.(z3.Int))
+		case symbolic.MUL:
+			return l.(z3.Int).Mul(r.(z3.Int))
+		case symbolic.DIV:
+			return l.(z3.Int).Div(r.(z3.Int))
+		case symbolic.MOD:
+			return l.(z3.Int).Mod(r.(z3.Int))
 		case symbolic.LT:
 			return l.(z3.Int).LT(r.(z3.Int))
 		case symbolic.LE:
@@ -119,11 +127,36 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 			return l.(z3.Int).GT(r.(z3.Int))
 		case symbolic.GE:
 			return l.(z3.Int).GE(r.(z3.Int))
+		case symbolic.EQ:
+			return l.(z3.Int).Eq(r.(z3.Int))
+		case symbolic.NE:
+			return l.(z3.Int).NE(r.(z3.Int))
 		}
 	}
 
-	if expr.Operator == symbolic.EQ && expr.Left.Type() == symbolic.IntType {
-		return l.(z3.Int).Eq(r.(z3.Int))
+	if expr.Left.Type() == symbolic.FloatType {
+		switch expr.Operator {
+		case symbolic.ADD:
+			return l.(z3.Float).Add(r.(z3.Float))
+		case symbolic.SUB:
+			return l.(z3.Float).Sub(r.(z3.Float))
+		case symbolic.MUL:
+			return l.(z3.Float).Mul(r.(z3.Float))
+		case symbolic.DIV:
+			return l.(z3.Float).Div(r.(z3.Float))
+		case symbolic.LT:
+			return l.(z3.Float).LT(r.(z3.Float))
+		case symbolic.LE:
+			return l.(z3.Float).LE(r.(z3.Float))
+		case symbolic.GT:
+			return l.(z3.Float).GT(r.(z3.Float))
+		case symbolic.GE:
+			return l.(z3.Float).GE(r.(z3.Float))
+		case symbolic.EQ:
+			return l.(z3.Float).Eq(r.(z3.Float))
+		case symbolic.NE:
+			return l.(z3.Float).NE(r.(z3.Float))
+		}
 	}
 
 	if expr.Operator == symbolic.EQ && expr.Left.Type() == symbolic.BoolType {
@@ -132,10 +165,6 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 
 	if expr.Operator == symbolic.EQ && expr.Left.Type() == symbolic.ArrayType {
 		return l.(z3.Array).Eq(r.(z3.Array))
-	}
-
-	if expr.Operator == symbolic.NE && expr.Left.Type() == symbolic.IntType {
-		return l.(z3.Int).NE(r.(z3.Int))
 	}
 
 	if expr.Operator == symbolic.NE && expr.Left.Type() == symbolic.BoolType {
@@ -178,13 +207,22 @@ func (zt *Z3Translator) VisitLogicalOperation(expr *symbolic.LogicalOperation) i
 }
 
 func (zt *Z3Translator) VisitUnaryOperation(expr *symbolic.UnaryOperation) interface{} {
+	operand := expr.Operand.Accept(zt)
 	switch expr.Operator {
 	case symbolic.PLUS:
-		return expr.Operand.Accept(zt)
+		return operand
 	case symbolic.MINUS:
-		return expr.Operand.Accept(zt).(z3.Int).Neg()
+		if expr.Operand.Type() == symbolic.IntType {
+			return operand.(z3.Int).Neg()
+		} else {
+			return operand.(z3.Float).Neg()
+		}
 	case symbolic.CARET:
-		return expr.Operand.Accept(zt).(z3.Int).ToBV(64).Not().SToInt()
+		return operand.(z3.Int).ToBV(64).Not().SToInt()
+	case symbolic.INCREMENT:
+		return operand.(z3.Int).Add(zt.ctx.FromBigInt(big.NewInt(1), zt.ctx.IntSort()).(z3.Int))
+	case symbolic.DECREMENT:
+		return operand.(z3.Int).Sub(zt.ctx.FromBigInt(big.NewInt(1), zt.ctx.IntSort()).(z3.Int))
 	}
 
 	panic("unsupported unary operator")
@@ -230,6 +268,14 @@ func (zt *Z3Translator) VisitArraySelect(expr *symbolic.ArraySelect) interface{}
 	return arr.Select(i)
 }
 
+func (zt *Z3Translator) VisitArrayStore(expr *symbolic.ArrayStore) interface{} {
+	arr := expr.Array.Accept(zt).(z3.Array)
+	i := expr.Index.Accept(zt).(z3.Int)
+	v := expr.Value.Accept(zt).(z3.Value)
+
+	return arr.Store(i, v)
+}
+
 // Вспомогательные методы
 
 // createZ3Variable создаёт Z3 переменную соответствующего типа
@@ -243,6 +289,8 @@ func (zt *Z3Translator) sortForType(t symbolic.ExpressionType, generic *symbolic
 	switch t {
 	case symbolic.IntType:
 		return zt.ctx.IntSort()
+	case symbolic.FloatType:
+		return zt.ctx.FloatSort(11, 53)
 	case symbolic.BoolType:
 		return zt.ctx.BoolSort()
 	case symbolic.ArrayType:
@@ -261,6 +309,8 @@ func (zt *Z3Translator) castToZ3Type(value interface{}, targetType symbolic.Expr
 	switch targetType {
 	case symbolic.IntType:
 		return value.(z3.Int), nil
+	case symbolic.FloatType:
+		return value.(z3.Float), nil
 	case symbolic.BoolType:
 		return value.(z3.Bool), nil
 	case symbolic.ArrayType:
