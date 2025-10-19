@@ -406,7 +406,7 @@ type UnaryOperator int
 const (
 	PLUS UnaryOperator = iota
 	MINUS
-	CORRET
+	CARET
 )
 
 func (op UnaryOperator) String() string {
@@ -415,7 +415,7 @@ func (op UnaryOperator) String() string {
 		return "+"
 	case MINUS:
 		return "-"
-	case CORRET:
+	case CARET:
 		return "^"
 	default:
 		return "unknown"
@@ -536,7 +536,7 @@ type FunctionCall struct {
 // NewArraySelect создаёт выражение arr[idx]
 func NewFunctionCall(fun Function, args []SymbolicExpression) *FunctionCall {
 	for i, e := range args {
-		if e.Type() != args[i].Type() {
+		if e.Type() != fun.Args[i].Type() {
 			return nil
 		}
 	}

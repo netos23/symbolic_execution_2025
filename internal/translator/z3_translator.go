@@ -94,7 +94,7 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 	// - Приводите типы: left.(z3.Int), right.(z3.Int) для int операций
 
 	l := expr.Left.Accept(zt)
-	r := expr.Left.Accept(zt)
+	r := expr.Right.Accept(zt)
 
 	switch expr.Operator {
 	case symbolic.ADD:
@@ -183,7 +183,7 @@ func (zt *Z3Translator) VisitUnaryOperation(expr *symbolic.UnaryOperation) inter
 		return expr.Operand.Accept(zt)
 	case symbolic.MINUS:
 		return expr.Operand.Accept(zt).(z3.Int).Neg()
-	case symbolic.CORRET:
+	case symbolic.CARET:
 		return expr.Operand.Accept(zt).(z3.Int).ToBV(64).Not().SToInt()
 	}
 

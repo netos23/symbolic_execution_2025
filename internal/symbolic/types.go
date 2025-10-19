@@ -20,7 +20,7 @@ type GenericType struct {
 
 func (g *GenericType) String() string {
 	if g.Generic == nil {
-		return g.Generic.ExprType.String()
+		return g.ExprType.String()
 	}
 
 	return fmt.Sprintf("%s[%s]", g.ExprType.String(), g.Generic.String())
