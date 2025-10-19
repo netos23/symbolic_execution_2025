@@ -471,11 +471,11 @@ type UnaryOperation struct {
 func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOperation {
 	switch op {
 	case PLUS:
-		if operand.Type() != IntType || operand.Type() != FloatType {
+		if operand.Type() != IntType && operand.Type() != FloatType {
 			return nil
 		}
 	case MINUS:
-		if operand.Type() != IntType || operand.Type() != FloatType {
+		if operand.Type() != IntType && operand.Type() != FloatType {
 			return nil
 		}
 	case CARET:

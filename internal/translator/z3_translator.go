@@ -75,7 +75,7 @@ func (zt *Z3Translator) VisitIntConstant(expr *symbolic.IntConstant) interface{}
 	return zt.ctx.FromBigInt(big.NewInt(expr.Value), zt.ctx.IntSort())
 }
 
-// VisitIntConstant транслирует целочисленную константу в Z3
+// VisitFloatConstant транслирует константу с плавающей точкой в Z3
 func (zt *Z3Translator) VisitFloatConstant(expr *symbolic.FloatConstant) interface{} {
 	// Создать Z3 константу с помощью zt.ctx.FromBigInt или аналогичного метода
 
@@ -102,10 +102,6 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 
 	l := expr.Left.Accept(zt)
 	r := expr.Right.Accept(zt)
-
-	switch expr.Operator {
-
-	}
 
 	if expr.Left.Type() == symbolic.IntType {
 		switch expr.Operator {
