@@ -14,8 +14,8 @@ func main() {
 	// TODO: Раскомментируйте после реализации методов
 
 	// Создаём простые символьные выражения
-	x := symbolic.NewSymbolicVariable("x", symbolic.IntType)
-	y := symbolic.NewSymbolicVariable("y", symbolic.IntType)
+	x := symbolic.NewSymbolicVariable("x", symbolic.IntType, nil, nil)
+	y := symbolic.NewSymbolicVariable("y", symbolic.IntType, nil, nil)
 	five := symbolic.NewIntConstant(5)
 
 	// Создаём выражение: x + y > 5

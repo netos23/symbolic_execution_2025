@@ -54,18 +54,18 @@ func (zt *Z3Translator) TranslateExpression(expr symbolic.SymbolicExpression) (i
 // TODO: Реализуйте следующие методы в рамках домашнего задания
 
 // VisitVariable транслирует символьную переменную в Z3
-func (zt *Z3Translator) VisitVariable(expr symbolic.SymbolicVariable) interface{} {
+func (zt *Z3Translator) VisitVariable(expr *symbolic.SymbolicVariable) interface{} {
 
 	// Подсказки:
 	// - Используйте zt.ctx.IntConst(name) для int переменных
 	// - Используйте zt.ctx.BoolConst(name) для bool переменных
 	// - Храните переменные в zt.vars для повторного использования
 
-	if v, hasCache := zt.vars[expr.Name()]; hasCache {
+	if v, hasCache := zt.vars[expr.Name]; hasCache {
 		return v
 	}
 
-	return zt.createZ3Variable(expr.Name(), expr.Type(), expr.TypeGeneric())
+	return zt.createZ3Variable(expr.Name, expr.Type(), expr.TypeGeneric)
 }
 
 // VisitIntConstant транслирует целочисленную константу в Z3
@@ -237,7 +237,7 @@ func (zt *Z3Translator) VisitFunction(expr *symbolic.Function) interface{} {
 	}
 
 	args := util.Convert(expr.Args, func(expr symbolic.SymbolicVariable) z3.Sort {
-		return zt.sortForType(expr.Type(), expr.TypeGeneric())
+		return zt.sortForType(expr.Type(), expr.TypeGeneric)
 	})
 
 	ret := zt.sortForType(expr.ReturnType.ExprType, expr.ReturnType.Generic)
@@ -270,6 +270,16 @@ func (zt *Z3Translator) VisitArrayStore(expr *symbolic.ArrayStore) interface{} {
 	v := expr.Value.Accept(zt).(z3.Value)
 
 	return arr.Store(i, v)
+}
+
+func (zt *Z3Translator) VisitRef(ref *symbolic.Ref) interface{}{
+	return ref.Deref.Accept(zt)
+}
+func (zt *Z3Translator) VisitFieldRead(f *symbolic.FieldRead) interface{} {
+	return f.RawValue.Accept(zt)
+}
+func (zt *Z3Translator) VisitFieldWrite(f *symbolic.FieldWrite) interface{} {
+	return f.RawValue.Accept(zt)
 }
 
 // Вспомогательные методы
