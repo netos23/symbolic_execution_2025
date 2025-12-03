@@ -576,6 +576,9 @@ type ArrayStore struct {
 
 // NewArrayStore создаёт выражение arr[idx]
 func NewArrayStore(arr SymbolicExpression, idx SymbolicExpression, v SymbolicExpression) *ArrayStore {
+	if arr == nil || idx == nil || v == nil {
+		panic("invalid array store")
+	}
 
 	return &ArrayStore{Array: arr, Index: idx, Value: v}
 }
@@ -722,15 +725,15 @@ func (ce *ConditionalExpression) Accept(visitor Visitor) interface{} {
 }
 
 type FieldRead struct {
-	Obj   SymbolicExpression
-	Index int
+	Obj      SymbolicExpression
+	Index    int
 	RawValue SymbolicExpression
 }
 
 func NewFieldRead(obj SymbolicExpression, idx int, value SymbolicExpression) *FieldRead {
 	return &FieldRead{
-		Obj:   obj,
-		Index: idx,
+		Obj:      obj,
+		Index:    idx,
 		RawValue: value,
 	}
 }
@@ -755,17 +758,17 @@ func (f *FieldRead) Accept(v Visitor) interface{} {
 }
 
 type FieldWrite struct {
-	Obj   SymbolicExpression
-	Index int
-	Value SymbolicExpression
+	Obj      SymbolicExpression
+	Index    int
+	Value    SymbolicExpression
 	RawValue SymbolicExpression
 }
 
 func NewFieldWrite(obj SymbolicExpression, index int, value SymbolicExpression, raw SymbolicExpression) *FieldWrite {
 	return &FieldWrite{
-		Obj:   obj,
-		Index: index,
-		Value: value,
+		Obj:      obj,
+		Index:    index,
+		Value:    value,
 		RawValue: value,
 	}
 }

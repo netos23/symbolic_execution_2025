@@ -233,7 +233,7 @@ func (mem *SymbolicMemory) AssignField(ref *symbolic.Ref, fieldIdx int, value sy
 		copy(tmp, typ.Fields)
 		typ.Fields = tmp
 
-		aux := make([]symbolic.SymbolicExpression, fieldIdx)
+		aux := make([]symbolic.SymbolicExpression, fieldIdx+1)
 		copy(aux, holder.FieldsHolder)
 		holder.FieldsHolder = aux
 	}
@@ -241,7 +241,9 @@ func (mem *SymbolicMemory) AssignField(ref *symbolic.Ref, fieldIdx int, value sy
 	if typ.Fields[fieldIdx] == nil {
 		switch value.Type() {
 		case symbolic.IntType:
+			fallthrough
 		case symbolic.FloatType:
+			fallthrough
 		case symbolic.BoolType:
 			typ.Fields[fieldIdx] = symbolic.NewObjectField(value.Type(), nil, nil)
 			holder.FieldsHolder[fieldIdx] = symbolic.NewSymbolicVariable(
@@ -260,6 +262,7 @@ func (mem *SymbolicMemory) AssignField(ref *symbolic.Ref, fieldIdx int, value sy
 			)
 			break
 		case symbolic.RefType:
+			fallthrough
 		case symbolic.ObjectType:
 			typ.Fields[fieldIdx] = symbolic.NewObjectField(symbolic.RefType, symbolic.ObjectFor(value), nil)
 			holder.FieldsHolder[fieldIdx] = symbolic.NewSymbolicVariable(
