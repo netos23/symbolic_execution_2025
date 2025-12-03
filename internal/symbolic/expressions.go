@@ -21,88 +21,36 @@ type SymbolicExpression interface {
 }
 
 // SymbolicVariable представляет символьную переменную
-type SymbolicVariable interface {
-	Name() string
-	Type() ExpressionType
-	TypeGeneric() *GenericType
-}
-
-type PrimitiveSymbolicVariable struct {
-	VarName  string
-	ExprType ExpressionType
+type SymbolicVariable struct {
+	Name        string
+	VarType     ExpressionType
+	TypeGeneric *GenericType
+	ObjType     *Object
 }
 
 // NewSymbolicVariable создаёт новую символьную переменную
-func NewSymbolicVariable(name string, exprType ExpressionType) *PrimitiveSymbolicVariable {
-	return &PrimitiveSymbolicVariable{
-		VarName:  name,
-		ExprType: exprType,
+func NewSymbolicVariable(name string, exprType ExpressionType, generic *GenericType, objType *Object) *SymbolicVariable {
+	return &SymbolicVariable{
+		Name:        name,
+		VarType:     exprType,
+		TypeGeneric: generic,
+		ObjType:     objType,
 	}
 }
 
-// Name возвращает имя переменной
-func (sv *PrimitiveSymbolicVariable) Name() string {
-	return sv.VarName
-}
-
 // Type возвращает тип переменной
-func (sv *PrimitiveSymbolicVariable) Type() ExpressionType {
-	return sv.ExprType
+func (sv *SymbolicVariable) Type() ExpressionType {
+	return sv.VarType
 }
 
 // String возвращает строковое представление переменной
-func (sv *PrimitiveSymbolicVariable) String() string {
-	return sv.VarName
+func (sv *SymbolicVariable) String() string {
+	return sv.Name
 }
 
 // Accept реализует Visitor pattern
-func (sv *PrimitiveSymbolicVariable) Accept(visitor Visitor) interface{} {
+func (sv *SymbolicVariable) Accept(visitor Visitor) interface{} {
 	return visitor.VisitVariable(sv)
-}
-
-// Accept реализует Visitor pattern
-func (sv *PrimitiveSymbolicVariable) TypeGeneric() *GenericType {
-	return nil
-}
-
-type ArraySymbolicVariable struct {
-	VarName  string
-	ExprType ExpressionType
-	Generic  GenericType
-}
-
-// NewSymbolicVariable создаёт новую символьную переменную
-func NewArraySymbolicVariable(name string, exprType ExpressionType, generic GenericType) *ArraySymbolicVariable {
-	return &ArraySymbolicVariable{
-		VarName:  name,
-		ExprType: exprType,
-		Generic:  generic,
-	}
-}
-
-// Name возвращает имя переменной
-func (sv *ArraySymbolicVariable) Name() string {
-	return sv.VarName
-}
-
-// Type возвращает тип переменной
-func (sv *ArraySymbolicVariable) Type() ExpressionType {
-	return sv.ExprType
-}
-
-// String возвращает строковое представление переменной
-func (sv *ArraySymbolicVariable) String() string {
-	return sv.VarName
-}
-
-// Accept реализует Visitor pattern
-func (sv *ArraySymbolicVariable) Accept(visitor Visitor) interface{} {
-	return visitor.VisitVariable(sv)
-}
-
-// Accept реализует Visitor pattern
-func (sv *ArraySymbolicVariable) TypeGeneric() *GenericType {
-	return &sv.Generic
 }
 
 // IntConstant представляет целочисленную константу
@@ -458,19 +406,39 @@ func (op UnaryOperator) String() string {
 }
 
 type Ref struct {
-	// TODO: Выбрать и написать внутреннее представление символьной ссылки
+	Address     int64
+	VarType     ExpressionType
+	TypeGeneric *GenericType
+	ObjType     *Object
+	Deref       SymbolicExpression
+}
+
+func NewRef(
+	address int64,
+	tpe ExpressionType,
+	generic *GenericType,
+	obj *Object,
+	deref SymbolicExpression,
+) *Ref {
+	return &Ref{
+		Address:     address,
+		VarType:     tpe,
+		TypeGeneric: generic,
+		ObjType:     obj,
+		Deref:       deref,
+	}
 }
 
 func (ref *Ref) Type() ExpressionType {
-	panic("не реализовано")
+	return RefType
 }
 
 func (ref *Ref) String() string {
-	panic("не реализовано")
+	return fmt.Sprintf("0x%d", ref.Address)
 }
 
 func (ref *Ref) Accept(visitor Visitor) interface{} {
-	panic("не реализовано")
+	return visitor.VisitRef(ref)
 }
 
 // TODO: Добавьте дополнительные типы выражений по необходимости:
@@ -537,18 +505,57 @@ func (uo *UnaryOperation) Accept(visitor Visitor) interface{} {
 // - ArrayAccess (доступ к элементам массива: arr[index])
 
 type ArraySelect struct {
-	Array ArraySymbolicVariable // Сам массив
-	Index SymbolicExpression    // Тип элемента массива
+	Array SymbolicExpression // Сам массив
+	Index SymbolicExpression // Тип элемента массива
 }
 
 // NewArraySelect создаёт выражение arr[idx]
-func NewArraySelect(arr ArraySymbolicVariable, idx SymbolicExpression) *ArraySelect {
+func NewArraySelect(arr SymbolicExpression, idx SymbolicExpression) *ArraySelect {
 	return &ArraySelect{Array: arr, Index: idx}
 }
 
 // Type возвращает тип элемента массива
 func (as *ArraySelect) Type() ExpressionType {
-	return as.Array.Generic.ExprType
+	arrayType := as.Array
+	return GenericFor(arrayType).ExprType
+}
+
+func ObjectFor(obj SymbolicExpression) *Object {
+	switch o := obj.(type) {
+	case *SymbolicVariable:
+		return o.ObjType
+	case *Ref:
+		return o.ObjType
+	}
+
+	panic("Wrong object")
+}
+
+func GenericFor(arrayType SymbolicExpression) *GenericType {
+	if arrayType.Type() != ArrayType {
+		return nil
+	}
+
+	for arrayType.Type() == ArrayType {
+		if inner, ok := arrayType.(*ArrayStore); ok {
+			arrayType = inner.Array
+		}
+
+		if val, ok := arrayType.(*SymbolicVariable); ok {
+			return val.TypeGeneric
+		}
+
+		if val, ok := arrayType.(*FieldRead); ok {
+			switch f := val.Obj.(type) {
+			case *Ref:
+				return f.ObjType.Fields[val.Index].Generic
+			case *SymbolicVariable:
+				return f.ObjType.Fields[val.Index].Generic
+			}
+		}
+	}
+
+	panic("Unknown reciver")
 }
 
 // String:  arr[idx]
@@ -557,25 +564,25 @@ func (as *ArraySelect) String() string {
 }
 
 // Accept реализует Visitor pattern
-func (as *ArraySelect) Accept(v Visitor) interface{} { return v.VisitArraySelect(as) }
+func (as *ArraySelect) Accept(visitor Visitor) interface{} { return visitor.VisitArraySelect(as) }
 
 // - ArrayAccess (доступ к элементам массива: arr[index])
 
 type ArrayStore struct {
-	Array ArraySymbolicVariable
+	Array SymbolicExpression
 	Index SymbolicExpression
 	Value SymbolicExpression
 }
 
 // NewArrayStore создаёт выражение arr[idx]
-func NewArrayStore(arr ArraySymbolicVariable, idx SymbolicExpression, v SymbolicExpression) *ArrayStore {
+func NewArrayStore(arr SymbolicExpression, idx SymbolicExpression, v SymbolicExpression) *ArrayStore {
 
 	return &ArrayStore{Array: arr, Index: idx, Value: v}
 }
 
 // Type возвращает тип элемента массива
 func (as *ArrayStore) Type() ExpressionType {
-	return as.Array.Type()
+	return ArrayType
 }
 
 // String:  arr[idx]
@@ -584,7 +591,7 @@ func (as *ArrayStore) String() string {
 }
 
 // Accept реализует Visitor pattern
-func (as *ArrayStore) Accept(v Visitor) interface{} { return v.VisitArrayStore(as) }
+func (as *ArrayStore) Accept(visitor Visitor) interface{} { return visitor.VisitArrayStore(as) }
 
 // - FunctionCall (вызовы функций: f(x, y))
 
@@ -617,7 +624,7 @@ func (f *Function) String() string {
 		strings.Join(
 			util.Convert(
 				f.Args, func(e SymbolicVariable) string {
-					return e.Name()
+					return e.Name
 				},
 			),
 			",",
@@ -712,4 +719,65 @@ func (ce *ConditionalExpression) String() string {
 // Accept реализует Visitor pattern
 func (ce *ConditionalExpression) Accept(visitor Visitor) interface{} {
 	return visitor.VisitConditionalExpression(ce)
+}
+
+type FieldRead struct {
+	Obj   SymbolicExpression
+	Index int
+	RawValue SymbolicExpression
+}
+
+func NewFieldRead(obj SymbolicExpression, idx int, value SymbolicExpression) *FieldRead {
+	return &FieldRead{
+		Obj:   obj,
+		Index: idx,
+		RawValue: value,
+	}
+}
+
+func (f *FieldRead) Type() ExpressionType {
+	switch v := f.Obj.(type) {
+	case *SymbolicVariable:
+		return v.ObjType.Fields[f.Index].ExprType
+	case *Ref:
+		return v.ObjType.Fields[f.Index].ExprType
+	}
+
+	panic("Wrong reciver")
+}
+
+func (f *FieldRead) String() string {
+	return fmt.Sprintf("%s.%d", f.Obj, f.Index)
+}
+
+func (f *FieldRead) Accept(v Visitor) interface{} {
+	return v.VisitFieldRead(f)
+}
+
+type FieldWrite struct {
+	Obj   SymbolicExpression
+	Index int
+	Value SymbolicExpression
+	RawValue SymbolicExpression
+}
+
+func NewFieldWrite(obj SymbolicExpression, index int, value SymbolicExpression, raw SymbolicExpression) *FieldWrite {
+	return &FieldWrite{
+		Obj:   obj,
+		Index: index,
+		Value: value,
+		RawValue: value,
+	}
+}
+
+func (f *FieldWrite) Type() ExpressionType {
+	return f.Value.Type()
+}
+
+func (f *FieldWrite) String() string {
+	return fmt.Sprintf("%s.%d = %s", f.Obj, f.Index, f.Value)
+}
+
+func (f *FieldWrite) Accept(visitor Visitor) interface{} {
+	return visitor.VisitFieldWrite(f)
 }

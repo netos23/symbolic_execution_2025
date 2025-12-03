@@ -11,12 +11,45 @@ const (
 	FloatType
 	BoolType
 	ArrayType
+	ObjectType
+	RefType
 	// Добавьте другие типы по необходимости
 )
 
+type ObjectField struct {
+	ExprType   ExpressionType
+	ObjectType *Object
+	Generic    *GenericType
+}
+
+func NewObjectField(
+	exprType ExpressionType,
+	objectType *Object,
+	generic *GenericType,
+) *ObjectField {
+	return &ObjectField{
+		exprType,
+		objectType,
+		generic,
+	}
+}
+
+type Object struct {
+	Name   string
+	Fields []*ObjectField
+}
+
+func NewObject(name string) *Object {
+	return &Object{
+		Name:   name,
+		Fields: make([]*ObjectField, 0),
+	}
+}
+
 type GenericType struct {
-	ExprType ExpressionType
-	Generic  *GenericType
+	ExprType   ExpressionType
+	ObjectType *Object
+	Generic    *GenericType
 }
 
 func (g *GenericType) String() string {
