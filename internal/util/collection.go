@@ -21,3 +21,15 @@ func Fold[E, R any](data []E, initial R, f func(R, E) R) R {
 
 	return res
 }
+
+func FirstOrNil[E any](data []*E) *E {
+	if len(data) == 0 {
+		return nil
+	}
+
+	return data[0]
+}
+
+func Last[E any](data []E) E {
+	return data[len(data)-1]
+}

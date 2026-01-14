@@ -30,9 +30,12 @@ func main() {
 	mem.AssignField(ref1, 1, symbolic.NewIntConstant(10))
 	mem.AssignField(ref2, 1, symbolic.NewIntConstant(5))
 
-	tr := translator.NewZ3Translator()
+	config := z3.NewContextConfig()
+	ctx := z3.NewContext(config)
+
+	tr := translator.NewZ3Translator(ctx, config)
 	defer tr.Close()
-	solver := z3wrapper.NewSolver()
+	solver := z3wrapper.NewSolver(ctx)
 	defer solver.Close()
 
 	f1Expr, err := tr.TranslateExpression(mem.GetFieldValue(ref1, 1))
@@ -58,10 +61,10 @@ func main() {
 		log.Fatalf("Ошибка трансляции: %v", err)
 	}
 
-	solver.Assert((objExpr.(z3.Array)).Eq(ref1Expr.(z3.Array)))
-	solver.Assert((objExpr.(z3.Array)).Eq(ref2Expr.(z3.Array)))
-	solver.Assert((f1Expr.(z3.Int)).Eq(solver.Context().FromInt(5, solver.Context().IntSort()).(z3.Int)))
-	solver.Assert((f2Expr.(z3.Int)).Eq(solver.Context().FromInt(5, solver.Context().IntSort()).(z3.Int)))
+	solver.Assert((objExpr.(z3.Int)).Eq(ref1Expr.(z3.Int)))
+	solver.Assert((objExpr.(z3.Int)).Eq(ref2Expr.(z3.Int)))
+	solver.Assert((f1Expr.(z3.Int)).Eq(ctx.FromInt(5, ctx.IntSort()).(z3.Int)))
+	solver.Assert((f2Expr.(z3.Int)).Eq(ctx.FromInt(5, ctx.IntSort()).(z3.Int)))
 
 	sat, err := solver.Check()
 

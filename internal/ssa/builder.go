@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"go/types"
 
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
@@ -30,12 +31,14 @@ func NewBuilder() *Builder {
 // ParseAndBuildSSA парсит исходный код Go и создаёт SSA представление
 // Возвращает SSA программу и функцию по имени
 func (b *Builder) ParseAndBuildSSA(source string, funcName string) (*ssa.Function, error) {
-	file, err := parser.ParseFile(b.fset, "main.go", source, parser.ParseComments)
+	file, err := parser.ParseFile(b.fset, "", source, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
 
-	files := []*ast.File{file}
+	unrolledFile := astutil.Apply(file, UnrollLoops, nil).(*ast.File)
+
+	files := []*ast.File{unrolledFile}
 
 	pkg := types.NewPackage("homework1/main.go", "main")
 	tc := &types.Config{Importer: importer.Default()}

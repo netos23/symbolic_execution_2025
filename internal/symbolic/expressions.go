@@ -135,11 +135,10 @@ type BinaryOperation struct {
 	Operator BinaryOperator
 }
 
-// TODO: Реализуйте следующие методы в рамках домашнего задания
-
 // NewBinaryOperation создаёт новую бинарную операцию
 func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *BinaryOperation {
-	if left.Type() != right.Type() {
+
+	if DeRefType(left) != DeRefType(right) {
 		return nil
 	}
 
@@ -201,12 +200,21 @@ func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *Bina
 func (bo *BinaryOperation) Type() ExpressionType {
 	switch bo.Operator {
 	case ADD, SUB, MUL, DIV, MOD:
-		return bo.Left.Type()
+		return DeRefType(bo.Left)
 	case EQ, NE, LT, LE, GT, GE:
 		return BoolType
 	default:
 		panic("unknown type of binary operation")
 	}
+}
+
+func DeRefType(e SymbolicExpression) ExpressionType {
+	if e.Type() == RefType {
+		ref := e.(*Ref)
+		return ref.VarType
+	}
+
+	return e.Type()
 }
 
 // String возвращает строковое представление операции
@@ -528,7 +536,16 @@ func ObjectFor(obj SymbolicExpression) *Object {
 		return o.ObjType
 	}
 
-	panic("Wrong object")
+	return nil
+}
+
+func ObjectNameFor(obj SymbolicExpression) string {
+	boxed := ObjectFor(obj)
+	if boxed != nil {
+		return boxed.Name
+	}
+
+	return ""
 }
 
 func GenericFor(arrayType SymbolicExpression) *GenericType {
@@ -555,6 +572,8 @@ func GenericFor(arrayType SymbolicExpression) *GenericType {
 		}
 	}
 
+	// TODO: generic for refs
+
 	panic("Unknown reciver")
 }
 
@@ -576,6 +595,9 @@ type ArrayStore struct {
 
 // NewArrayStore создаёт выражение arr[idx]
 func NewArrayStore(arr SymbolicExpression, idx SymbolicExpression, v SymbolicExpression) *ArrayStore {
+	if arr == nil || idx == nil || v == nil {
+		panic("invalid array store")
+	}
 
 	return &ArrayStore{Array: arr, Index: idx, Value: v}
 }
@@ -722,15 +744,15 @@ func (ce *ConditionalExpression) Accept(visitor Visitor) interface{} {
 }
 
 type FieldRead struct {
-	Obj   SymbolicExpression
-	Index int
+	Obj      SymbolicExpression
+	Index    int
 	RawValue SymbolicExpression
 }
 
 func NewFieldRead(obj SymbolicExpression, idx int, value SymbolicExpression) *FieldRead {
 	return &FieldRead{
-		Obj:   obj,
-		Index: idx,
+		Obj:      obj,
+		Index:    idx,
 		RawValue: value,
 	}
 }
@@ -755,17 +777,17 @@ func (f *FieldRead) Accept(v Visitor) interface{} {
 }
 
 type FieldWrite struct {
-	Obj   SymbolicExpression
-	Index int
-	Value SymbolicExpression
+	Obj      SymbolicExpression
+	Index    int
+	Value    SymbolicExpression
 	RawValue SymbolicExpression
 }
 
 func NewFieldWrite(obj SymbolicExpression, index int, value SymbolicExpression, raw SymbolicExpression) *FieldWrite {
 	return &FieldWrite{
-		Obj:   obj,
-		Index: index,
-		Value: value,
+		Obj:      obj,
+		Index:    index,
+		Value:    value,
 		RawValue: value,
 	}
 }
