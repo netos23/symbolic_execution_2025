@@ -19,10 +19,7 @@ type Z3Translator struct {
 }
 
 // NewZ3Translator создаёт новый экземпляр Z3 транслятора
-func NewZ3Translator() *Z3Translator {
-	config := &z3.Config{}
-	ctx := z3.NewContext(config)
-
+func NewZ3Translator(ctx *z3.Context, config *z3.Config) *Z3Translator {
 	return &Z3Translator{
 		ctx:    ctx,
 		config: config,

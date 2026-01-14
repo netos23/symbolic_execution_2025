@@ -135,11 +135,10 @@ type BinaryOperation struct {
 	Operator BinaryOperator
 }
 
-// TODO: Реализуйте следующие методы в рамках домашнего задания
-
 // NewBinaryOperation создаёт новую бинарную операцию
 func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *BinaryOperation {
-	if left.Type() != right.Type() {
+
+	if DeRefType(left) != DeRefType(right) {
 		return nil
 	}
 
@@ -201,12 +200,21 @@ func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *Bina
 func (bo *BinaryOperation) Type() ExpressionType {
 	switch bo.Operator {
 	case ADD, SUB, MUL, DIV, MOD:
-		return bo.Left.Type()
+		return DeRefType(bo.Left)
 	case EQ, NE, LT, LE, GT, GE:
 		return BoolType
 	default:
 		panic("unknown type of binary operation")
 	}
+}
+
+func DeRefType(e SymbolicExpression) ExpressionType {
+	if e.Type() == RefType {
+		ref := e.(*Ref)
+		return ref.VarType
+	}
+
+	return e.Type()
 }
 
 // String возвращает строковое представление операции
@@ -528,7 +536,16 @@ func ObjectFor(obj SymbolicExpression) *Object {
 		return o.ObjType
 	}
 
-	panic("Wrong object")
+	return nil
+}
+
+func ObjectNameFor(obj SymbolicExpression) string {
+	boxed := ObjectFor(obj)
+	if boxed != nil {
+		return boxed.Name
+	}
+
+	return ""
 }
 
 func GenericFor(arrayType SymbolicExpression) *GenericType {
@@ -554,6 +571,8 @@ func GenericFor(arrayType SymbolicExpression) *GenericType {
 			}
 		}
 	}
+
+	// TODO: generic for refs
 
 	panic("Unknown reciver")
 }

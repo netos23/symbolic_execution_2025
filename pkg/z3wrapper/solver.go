@@ -15,9 +15,7 @@ type Solver struct {
 }
 
 // NewSolver создаёт новый экземпляр Z3 solver
-func NewSolver() *Solver {
-	config := z3.NewContextConfig()
-	ctx := z3.NewContext(config)
+func NewSolver(ctx *z3.Context) *Solver {
 	solver := z3.NewSolver(ctx)
 
 	return &Solver{

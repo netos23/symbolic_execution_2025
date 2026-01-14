@@ -21,6 +21,8 @@ type Memory interface {
 	AssignToArray(ref *symbolic.Ref, index int64, value symbolic.SymbolicExpression) symbolic.SymbolicExpression
 
 	GetFromArray(ref *symbolic.Ref, index int64) symbolic.SymbolicExpression
+
+	Assign(lhs symbolic.SymbolicExpression, rhs symbolic.SymbolicExpression) symbolic.SymbolicExpression
 }
 
 type PrimitiveHolder struct {
@@ -121,7 +123,9 @@ func NewSymbolicMemory() *SymbolicMemory {
 func (mem *SymbolicMemory) Allocate(tpe symbolic.ExpressionType, typeName string, genericType *symbolic.GenericType) *symbolic.Ref {
 	switch tpe {
 	case symbolic.IntType:
+		fallthrough
 	case symbolic.FloatType:
+		fallthrough
 	case symbolic.BoolType:
 		holder, _ := mem.PrimitivePool[tpe]
 		refId := holder.RefSeq
@@ -181,7 +185,9 @@ func (mem *SymbolicMemory) Allocate(tpe symbolic.ExpressionType, typeName string
 func (mem *SymbolicMemory) MakeRef(tpe symbolic.ExpressionType, typeName string, genericType *symbolic.GenericType) *symbolic.Ref {
 	switch tpe {
 	case symbolic.IntType:
+		fallthrough
 	case symbolic.FloatType:
+		fallthrough
 	case symbolic.BoolType:
 		address := mem.RefId
 		mem.RefId += 1
@@ -218,7 +224,7 @@ func (mem *SymbolicMemory) MakeRef(tpe symbolic.ExpressionType, typeName string,
 			symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(address)),
 		)
 	case symbolic.RefType:
-
+		// TODO: work with pointers
 	}
 
 	panic("Make ref unsupported")
@@ -342,4 +348,24 @@ func (mem *SymbolicMemory) ReadPrimitive(ref *symbolic.Ref) symbolic.SymbolicExp
 		holder.Slots,
 		symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(ref.Address)),
 	)
+}
+func (mem *SymbolicMemory) Assign(lhs symbolic.SymbolicExpression, rhs symbolic.SymbolicExpression) symbolic.SymbolicExpression{
+	if lhs.Type() != symbolic.RefType {
+		return rhs
+	}
+
+	ref := lhs.(*symbolic.Ref)
+
+	switch ref.VarType {
+	case symbolic.IntType:
+		fallthrough
+	case symbolic.BoolType:
+		fallthrough
+	case symbolic.FloatType:
+		mem.AssignPrimitive(ref,rhs)
+	default:
+		// TODO: pointers support
+	}
+
+	return lhs
 }

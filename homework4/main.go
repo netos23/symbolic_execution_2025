@@ -9,7 +9,11 @@ func main() {
 	source := `
 package main
 
-func testFunction(x int) int {
+type Strup struct {
+ 	Name string
+}
+
+func testFunction(x, y int, z []Strup) int {
 	if x > 0 {
 		return x * 2
 	} else {
