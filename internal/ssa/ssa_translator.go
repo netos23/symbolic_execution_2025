@@ -9,7 +9,25 @@ func ConvertToSymbolic(param types.Type) (symbolic.ExpressionType, string, *symb
 	switch t := param.(type) {
 	case *types.Basic:
 		switch t.Kind() {
+		case types.Int8:
+			fallthrough
+		case types.Int16:
+			fallthrough
+		case types.Int32:
+			fallthrough
+		case types.Int64:
+			fallthrough
+		case types.Uint8:
+			fallthrough
+		case types.Uint16:
+			fallthrough
+		case types.Uint32:
+			fallthrough
+		case types.Uint64:
+			fallthrough
 		case types.Int:
+			fallthrough
+		case types.Uint:
 			return symbolic.IntType, "", nil
 		case types.Bool:
 			return symbolic.BoolType, "", nil

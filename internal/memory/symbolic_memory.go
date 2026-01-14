@@ -18,9 +18,9 @@ type Memory interface {
 
 	GetFieldValue(ref *symbolic.Ref, fieldIdx int) symbolic.SymbolicExpression
 
-	AssignToArray(ref *symbolic.Ref, index int64, value symbolic.SymbolicExpression) symbolic.SymbolicExpression
+	AssignToArray(ref *symbolic.Ref, index symbolic.SymbolicExpression, value symbolic.SymbolicExpression) symbolic.SymbolicExpression
 
-	GetFromArray(ref *symbolic.Ref, index int64) symbolic.SymbolicExpression
+	GetFromArray(ref *symbolic.Ref, index symbolic.SymbolicExpression) symbolic.SymbolicExpression
 
 	Assign(lhs symbolic.SymbolicExpression, rhs symbolic.SymbolicExpression) symbolic.SymbolicExpression
 }
@@ -309,24 +309,24 @@ func (mem *SymbolicMemory) GetFieldValue(ref *symbolic.Ref, fieldIdx int) symbol
 	)
 }
 
-func (mem *SymbolicMemory) AssignToArray(ref *symbolic.Ref, index int64, value symbolic.SymbolicExpression) symbolic.SymbolicExpression {
+func (mem *SymbolicMemory) AssignToArray(ref *symbolic.Ref, index symbolic.SymbolicExpression, value symbolic.SymbolicExpression) symbolic.SymbolicExpression {
 	holder, _ := mem.ArrayPool[ref.TypeGeneric.String()]
 
 	holder.Slots = symbolic.NewArrayStore(
 		symbolic.NewArraySelect(holder.Slots, symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(ref.Address))),
-		symbolic.NewIntConstant(index),
+		index,
 		value,
 	)
 
 	return holder.Slots
 }
 
-func (mem *SymbolicMemory) GetFromArray(ref *symbolic.Ref, index int64) symbolic.SymbolicExpression {
+func (mem *SymbolicMemory) GetFromArray(ref *symbolic.Ref, index symbolic.SymbolicExpression) symbolic.SymbolicExpression {
 	holder, _ := mem.ArrayPool[ref.TypeGeneric.String()]
 
 	return symbolic.NewArraySelect(
 		symbolic.NewArraySelect(holder.Slots, symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(ref.Address))),
-		symbolic.NewIntConstant(index),
+		index,
 	)
 }
 func (mem *SymbolicMemory) AssignPrimitive(ref *symbolic.Ref, value symbolic.SymbolicExpression) symbolic.SymbolicExpression {

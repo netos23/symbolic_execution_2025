@@ -101,6 +101,15 @@ func (interpreter *Interpreter) resolveExpression(value ssa.Value) symbolic.Symb
 		return interpreter.resolveUnOp(v)
 	case *ssa.BinOp:
 		return interpreter.resolveBinOp(v)
+	case *ssa.Call:
+		// Обработка вызова встроенной функции len
+		if builtin, ok := v.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "len" {
+			return interpreter.resolveBuiltinLenCall(v)
+		}
+		panic("Only builtin len supported in resolveExpression")
+
+	case *ssa.MakeSlice:
+		return interpreter.resolveMakeSlice(v)
 	default:
 		frame := util.Last(interpreter.CallStack)
 		if expr, ok := frame.LocalMemory[value.Name()]; ok {
@@ -109,6 +118,21 @@ func (interpreter *Interpreter) resolveExpression(value ssa.Value) symbolic.Symb
 	}
 
 	panic("Unsupported value")
+}
+
+func (interpreter *Interpreter) resolveMakeSlice(v ssa.Value) symbolic.SymbolicExpression {
+	ref := interpreter.Heap.Allocate(builder.ConvertToSymbolic(v.Type()))
+	f := util.Last(interpreter.CallStack)
+	f.LocalMemory[v.Name()] = ref
+	return ref
+}
+
+func (interpreter *Interpreter) resolveBuiltinLenCall(call *ssa.Call) symbolic.SymbolicExpression {
+	if len(call.Call.Args) != 1 {
+		panic("len expects exactly one argument")
+	}
+
+	return interpreter.Heap.MakeRef(symbolic.IntType, "", nil)
 }
 
 func (interpreter *Interpreter) interpretDynamicallyUnOp(e *ssa.UnOp) []Interpreter {
@@ -279,6 +303,17 @@ func (interpreter *Interpreter) interpretDynamicallyReturn(e *ssa.Return) []Inte
 }
 
 func (interpreter *Interpreter) resolveConst(v *ssa.Const) symbolic.SymbolicExpression {
+	if v.Value == nil {
+		f := util.Last(interpreter.CallStack)
+		if n, ok := f.LocalMemory["nil"+v.Type().String()]; ok {
+			return n
+		} else {
+			n := interpreter.Heap.Allocate(builder.ConvertToSymbolic(v.Type()))
+			f.LocalMemory["nil"+v.Type().String()] = n
+			return n
+		}
+	}
+
 	switch v.Value.Kind() {
 	case constant.Bool:
 		return symbolic.NewBoolConstant(constant.BoolVal(v.Value))
@@ -357,8 +392,37 @@ func (interpreter *Interpreter) nextStates(interpreters []Interpreter) []Interpr
 }
 
 func (interpreter *Interpreter) interpretDynamicallyStore(e *ssa.Store) []Interpreter {
-	// todo implement
-	panic("implement me")
+	addrExpr := interpreter.resolveExpression(e.Addr)
+	valExpr := interpreter.resolveExpression(e.Val)
+
+	switch addr := addrExpr.(type) {
+	case *symbolic.Ref:
+		switch addr.Type() {
+		case symbolic.IntType, symbolic.FloatType, symbolic.BoolType:
+			interpreter.Heap.AssignPrimitive(addr, valExpr)
+		case symbolic.ArrayType:
+			if indexAddr, ok := e.Addr.(*ssa.IndexAddr); ok {
+				index := interpreter.resolveExpression(indexAddr.Index)
+				interpreter.Heap.AssignToArray(addr, index, valExpr)
+			} else {
+				panic("Expected IndexAddr for array store")
+			}
+		case symbolic.ObjectType, symbolic.RefType:
+			if fieldAddr, ok := e.Addr.(*ssa.FieldAddr); ok {
+				fieldIndex := fieldAddr.Field
+				interpreter.Heap.AssignField(addr, fieldIndex, valExpr)
+			} else {
+				panic("Expected FieldAddr for object field store")
+			}
+		default:
+			panic("Unsupported Ref type in Store")
+		}
+
+	default:
+		panic("Unsupported address expression in Store")
+	}
+
+	return interpreter.nextInstruction()
 }
 
 func (interpreter *Interpreter) interpretDynamicallyPhi(e *ssa.Phi) []Interpreter {
@@ -411,8 +475,14 @@ func (interpreter *Interpreter) interpretDynamicallyMakeInterface(e *ssa.MakeInt
 }
 
 func (interpreter *Interpreter) interpretDynamicallyFieldAddr(e *ssa.FieldAddr) []Interpreter {
-	// todo implement
-	panic("implement me")
+	frame := util.Last(interpreter.CallStack)
+
+	base := interpreter.resolveExpression(e.X)
+	fieldIndex := e.Field
+	fieldValue := interpreter.Heap.GetFieldValue(base.(*symbolic.Ref), fieldIndex)
+	frame.LocalMemory[e.Name()] = fieldValue
+
+	return interpreter.nextInstruction()
 }
 
 func (interpreter *Interpreter) interpretDynamicallyField(e *ssa.Field) []Interpreter {
@@ -427,11 +497,26 @@ func (interpreter *Interpreter) interpretDynamicallyField(e *ssa.Field) []Interp
 }
 
 func (interpreter *Interpreter) interpretDynamicallyIndexAddr(e *ssa.IndexAddr) []Interpreter {
-	// todo implement
-	panic("implement me")
+	frame := util.Last(interpreter.CallStack)
+
+	base := interpreter.resolveExpression(e.X)
+	index := interpreter.resolveExpression(e.Index)
+
+	// todo custom type
+	value := symbolic.NewArraySelect(base, index)
+	frame.LocalMemory[e.Name()] = value
+
+	return interpreter.nextInstruction()
 }
 
 func (interpreter *Interpreter) interpretDynamicallyIndex(e *ssa.Index) []Interpreter {
-	// todo implement
-	panic("implement me")
+	frame := util.Last(interpreter.CallStack)
+
+	base := interpreter.resolveExpression(e.X)
+	index := interpreter.resolveExpression(e.Index)
+
+	value := interpreter.Heap.GetFromArray(base.(*symbolic.Ref), index)
+	frame.LocalMemory[e.Name()] = value
+
+	return interpreter.nextInstruction()
 }
