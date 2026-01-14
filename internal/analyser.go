@@ -25,6 +25,9 @@ func Analyse(source string, functionName string) []Interpreter {
 		panic(err)
 	}
 
+	funBuilder.PrintBlocksAndInstructions(fun)
+
+
 	config := z3.NewContextConfig()
 	ctx := z3.NewContext(config)
 	tr := translator.NewZ3Translator(ctx, config)
@@ -45,14 +48,16 @@ func Analyse(source string, functionName string) []Interpreter {
 		locals[p.Name()] = mem.MakeRef(builder.ConvertToSymbolic(p.Type()))
 	}
 	stack := CallStackFrame{
-		Function:    fun,
-		LocalMemory: locals,
-		Block:       util.FirstOrNil(fun.Blocks),
+		Function:           fun,
+		LocalMemory:        locals,
+		Block:              util.FirstOrNil(fun.Blocks),
+		InstructionPointer: 0,
 	}
 	init := Interpreter{
-		CallStack: []CallStackFrame{stack},
-		Analyser:  &an,
-		Heap:      mem,
+		CallStack:      []CallStackFrame{stack},
+		Analyser:       &an,
+		Heap:           mem,
+		RecursionLimit: 10,
 	}
 
 	an.StatesQueue.Push(&Item{
@@ -64,7 +69,9 @@ func Analyse(source string, functionName string) []Interpreter {
 		item := an.StatesQueue.Pop().(*Item)
 
 		interpreter := item.value
-		for _, instr := range util.Last(interpreter.CallStack).Block.Instrs {
+		stackFrame := util.Last(interpreter.CallStack)
+		instructions := stackFrame.Block.Instrs[stackFrame.InstructionPointer:]
+		for _, instr := range instructions {
 			nextStates := interpreter.interpretDynamically(instr)
 
 			for _, s := range nextStates {
@@ -73,9 +80,20 @@ func Analyse(source string, functionName string) []Interpreter {
 					priority: an.PathSelector.CalculatePriority(s),
 				})
 			}
+
+			// Для прервываемой стратегии выполнения
+			/*if len(nextStates) != 0 {
+				// Если количество стейтов отлично от нуля, должны обратиться к пас селектору
+				// Например: вызов функции, ветвление или прыжoк
+				break
+			}*/
+
 		}
 
+		// Для прервываемой стратегии выполнения
+		//if interpreter.completed() {
 		an.Results = append(an.Results, interpreter)
+		//}
 	}
 
 	return an.Results

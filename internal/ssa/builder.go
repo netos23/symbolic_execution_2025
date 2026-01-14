@@ -56,3 +56,15 @@ func (b *Builder) ParseAndBuildSSA(source string, funcName string) (*ssa.Functio
 
 	return nil, fmt.Errorf("missing function: %s", funcName)
 }
+
+func (b *Builder) PrintBlocksAndInstructions(fun *ssa.Function) {
+	fmt.Println("---------------")
+	fmt.Printf("Function: %s\n", fun.Name())
+	for i, block := range fun.Blocks {
+		fmt.Printf("  Block %d (%s):\n", i, block.Comment)
+		for j, instr := range block.Instrs {
+			fmt.Printf("    %d: %s\n", j, instr.String())
+		}
+	}
+	fmt.Println("---------------")
+}
