@@ -137,57 +137,57 @@ type BinaryOperation struct {
 
 // NewBinaryOperation создаёт новую бинарную операцию
 func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *BinaryOperation {
-	/*
-		if DeRefType(left) != DeRefType(right) {
+
+	if DeRefType(left) != DeRefType(right) {
+		return nil
+	}
+
+	switch op {
+	case ADD:
+		if left.Type() == BoolType {
 			return nil
 		}
 
-		switch op {
-		case ADD:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case SUB:
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case SUB:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case MUL:
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case MUL:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case DIV:
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case DIV:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case MOD:
+		if left.Type() == FloatType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case MOD:
-			if left.Type() == FloatType {
-				return nil
-			}
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == BoolType {
-				return nil
-			}
-
-			if left.Type() == ArrayType {
-				return nil
-			}
-		}*/
+		if left.Type() == ArrayType {
+			return nil
+		}
+	}
 
 	return &BinaryOperation{
 		Operator: op,

@@ -69,12 +69,6 @@ func (b *Builder) PrintBlocksAndInstructions(fun *ssa.Function) {
 func (b *Builder) PrintBlock(i int, block *ssa.BasicBlock) {
 	fmt.Printf("  Block %d (%s):\n", i, block.Comment)
 	for j, instr := range block.Instrs {
-
-		if named, ok := instr.(interface{ Name() string }); ok {
-			fmt.Printf("    %d: %s = %s\n", j, named.Name(), instr.String())
-		} else {
-			fmt.Printf("    %d: %s\n", j, instr.String())
-		}
-
+		fmt.Printf("    %d: %s\n", j, instr.String())
 	}
 }

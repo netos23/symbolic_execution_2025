@@ -53,10 +53,6 @@ type GenericType struct {
 }
 
 func (g *GenericType) String() string {
-	if g == nil {
-		return ""
-	}
-
 	if g.Generic == nil {
 		return g.ExprType.String()
 	}

@@ -9,28 +9,29 @@ func main() {
 	source := `
 package main
 
-func factorial(n int) int {
-	if n <= 1 {
-		return 1
+
+func CompareWithDiv(a, b float64) float64 {
+	z := a + 0.5
+	if (a / z) > b {
+		return 1.0
+	} else {
+		return 0.0
 	}
-	return n * factorial(n-1)
 }
 
-func CharSizeAndIndex(a []rune, x rune) byte {
-	if a == nil || len(a) <= int(x) || x < 1 {
-		return 255
+func Mul(a, b float64) float64 {
+	if a*b > 33.32 && a*b < 33.333 {
+		return 1.1
+	} else if a*b > 33.333 && a*b < 33.7592 {
+		return 1.2
+	} else {
+		return 1.3
 	}
-	b := make([]rune, x)
-	b[0] = 5
-	a[x] = x
-	if b[0]+a[x] > 7 {
-		return 1
-	}
-	return 0
 }
+
 `
 
-	result := internal.Analyse(source, "CharSizeAndIndex")
+	result := internal.AnalyseSource(source, "Mul")
 	for _, interpreter := range result {
 		fmt.Println(interpreter)
 	}

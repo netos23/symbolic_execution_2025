@@ -80,8 +80,6 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 		return interpreter.interpretDynamicallyConvert(e)
 	case *ssa.MakeInterface:
 		return interpreter.interpretDynamicallyMakeInterface(e)
-	case *ssa.MakeSlice:
-		return interpreter.interpretDynamicallyMakeSlice(e)
 	case *ssa.FieldAddr:
 		return interpreter.interpretDynamicallyFieldAddr(e)
 	case *ssa.Field:
@@ -96,8 +94,6 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 }
 
 func (interpreter *Interpreter) resolveExpression(value ssa.Value) symbolic.SymbolicExpression {
-	frame := util.Last(interpreter.CallStack)
-
 	switch v := value.(type) {
 	case *ssa.Const:
 		return interpreter.resolveConst(v)
@@ -110,20 +106,12 @@ func (interpreter *Interpreter) resolveExpression(value ssa.Value) symbolic.Symb
 		if builtin, ok := v.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "len" {
 			return interpreter.resolveBuiltinLenCall(v)
 		}
-
-		if cache, ok := frame.LocalMemory[v.Name()]; ok {
-			return cache
-		}
-
-		if cache, ok := frame.LocalMemory[v.Call.Value.Name()]; ok {
-			return cache
-		}
-
 		panic("Only builtin len supported in resolveExpression")
 
 	case *ssa.MakeSlice:
 		return interpreter.resolveMakeSlice(v)
 	default:
+		frame := util.Last(interpreter.CallStack)
 		if expr, ok := frame.LocalMemory[value.Name()]; ok {
 			return expr
 		}
@@ -225,14 +213,9 @@ func (interpreter *Interpreter) assign(name string, expr symbolic.SymbolicExpres
 	if hasLocal {
 		localMemory[name] = interpreter.Heap.Assign(v, expr)
 	} else {
-		v := expr
-
-		if expr.Type() != symbolic.RefType {
-			v = interpreter.Heap.Allocate(
-				expr.Type(), symbolic.ObjectNameFor(expr), symbolic.GenericFor(expr),
-			)
-		}
-
+		v := interpreter.Heap.Allocate(
+			expr.Type(), symbolic.ObjectNameFor(expr), symbolic.GenericFor(expr),
+		)
 		localMemory[name] = interpreter.Heap.Assign(v, expr)
 	}
 }
@@ -381,11 +364,6 @@ func (interpreter *Interpreter) interpretDynamicallyCall(e *ssa.Call) []Interpre
 	if e.Call.StaticCallee() != nil {
 		callee = e.Call.StaticCallee()
 	} else {
-		results := callee.Signature.Results()
-		if results != nil {
-			returnAddress := interpreter.Heap.Allocate(builder.ConvertToSymbolic(results.At(0).Type()))
-			interpreter.assign(e.Name(), returnAddress)
-		}
 		// Indirect calls, are not supported here
 		return interpreter.nextInstruction()
 	}
@@ -398,11 +376,6 @@ func (interpreter *Interpreter) interpretDynamicallyCall(e *ssa.Call) []Interpre
 		}
 	}
 	if count >= interpreter.RecursionLimit {
-		results := callee.Signature.Results()
-		if results != nil {
-			returnAddress := interpreter.Heap.Allocate(builder.ConvertToSymbolic(results.At(0).Type()))
-			interpreter.assign(e.Name(), returnAddress)
-		}
 		// Recursion limit reached, skip the call
 		return interpreter.nextInstruction()
 	}
@@ -431,8 +404,7 @@ func (interpreter *Interpreter) interpretDynamicallyCall(e *ssa.Call) []Interpre
 		functionFrame.ReturnAddress = returnAddress
 	}
 
-	//return interpreter.nextStates([]Interpreter{*functionCall})
-	return interpreter.nextStates([]Interpreter{*interpreter, *functionCall})
+	return interpreter.nextStates([]Interpreter{*functionCall})
 }
 
 func (interpreter *Interpreter) completed() bool {
@@ -583,15 +555,6 @@ func (interpreter *Interpreter) interpretDynamicallyIndex(e *ssa.Index) []Interp
 	index := interpreter.resolveExpression(e.Index)
 
 	value := interpreter.Heap.GetFromArray(base.(*symbolic.Ref), index)
-	frame.LocalMemory[e.Name()] = value
-
-	return interpreter.nextInstruction()
-}
-
-func (interpreter *Interpreter) interpretDynamicallyMakeSlice(e *ssa.MakeSlice) []Interpreter {
-	frame := util.Last(interpreter.CallStack)
-
-	value := interpreter.Heap.Allocate(builder.ConvertToSymbolic(e.Type()))
 	frame.LocalMemory[e.Name()] = value
 
 	return interpreter.nextInstruction()

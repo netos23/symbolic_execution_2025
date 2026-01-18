@@ -66,10 +66,7 @@ func NewArrayHolder(generic *symbolic.GenericType) *ArrayHolder {
 		Slots: symbolic.NewSymbolicVariable(
 			fmt.Sprintf("$%s", generic.String()),
 			symbolic.ArrayType,
-			&symbolic.GenericType{
-				ExprType: symbolic.ArrayType,
-				Generic:  generic,
-			},
+			generic,
 			nil,
 		),
 	}
@@ -94,21 +91,21 @@ func NewSymbolicMemory() *SymbolicMemory {
 		PrimitivePool: map[symbolic.ExpressionType]*PrimitiveHolder{
 			symbolic.IntType: NewPrimitivesHolder(
 				symbolic.IntType, symbolic.NewSymbolicVariable(
-					"$addrI", symbolic.ArrayType,
+					"$addr", symbolic.ArrayType,
 					&symbolic.GenericType{symbolic.IntType, nil, nil},
 					nil,
 				),
 			),
 			symbolic.FloatType: NewPrimitivesHolder(
 				symbolic.FloatType, symbolic.NewSymbolicVariable(
-					"$addrF", symbolic.ArrayType,
+					"$addr", symbolic.ArrayType,
 					&symbolic.GenericType{symbolic.FloatType, nil, nil},
 					nil,
 				),
 			),
 			symbolic.BoolType: NewPrimitivesHolder(
 				symbolic.BoolType, symbolic.NewSymbolicVariable(
-					"$addrB", symbolic.ArrayType,
+					"$addr", symbolic.ArrayType,
 					&symbolic.GenericType{symbolic.BoolType, nil, nil},
 					nil,
 				),
@@ -132,10 +129,7 @@ func (mem *SymbolicMemory) Allocate(tpe symbolic.ExpressionType, typeName string
 
 		return symbolic.NewRef(
 			address, tpe, nil, nil,
-			symbolic.NewArraySelect(
-				mem.PrimitivePool[tpe].Slots,
-				symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(address)),
-			),
+			symbolic.NewArraySelect(deref, symbolic.NewIntConstant(address)),
 		)
 	case symbolic.ArrayType:
 		holder, hasHolder := mem.ArrayPool[genericType.String()]
@@ -153,7 +147,7 @@ func (mem *SymbolicMemory) Allocate(tpe symbolic.ExpressionType, typeName string
 
 		return symbolic.NewRef(
 			address, tpe, genericType, nil,
-			symbolic.NewArraySelect(holder.Slots, symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(address))),
+			symbolic.NewArraySelect(deref, symbolic.NewIntConstant(address)),
 		)
 	case symbolic.ObjectType:
 		holder, hasHolder := mem.ObjectPool[typeName]
@@ -182,16 +176,17 @@ func (mem *SymbolicMemory) Allocate(tpe symbolic.ExpressionType, typeName string
 
 func (mem *SymbolicMemory) MakeRef(tpe symbolic.ExpressionType, typeName string, genericType *symbolic.GenericType) *symbolic.Ref {
 	switch tpe {
-	case symbolic.IntType, symbolic.FloatType, symbolic.BoolType:
+	case symbolic.IntType:
+		fallthrough
+	case symbolic.FloatType:
+		fallthrough
+	case symbolic.BoolType:
 		address := mem.RefId
 		mem.RefId += 1
 
 		return symbolic.NewRef(
 			address, tpe, nil, nil,
-			symbolic.NewArraySelect(
-				mem.PrimitivePool[tpe].Slots,
-				symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(address)),
-			),
+			symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(address)),
 		)
 	case symbolic.ArrayType:
 		holder, hasHolder := mem.ArrayPool[genericType.String()]
@@ -204,7 +199,7 @@ func (mem *SymbolicMemory) MakeRef(tpe symbolic.ExpressionType, typeName string,
 
 		return symbolic.NewRef(
 			address, tpe, genericType, nil,
-			symbolic.NewArraySelect(holder.Slots, symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(address))),
+			symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(address)),
 		)
 	case symbolic.ObjectType:
 		holder, hasHolder := mem.ObjectPool[typeName]
@@ -243,7 +238,11 @@ func (mem *SymbolicMemory) AssignField(ref *symbolic.Ref, fieldIdx int, value sy
 
 	if typ.Fields[fieldIdx] == nil {
 		switch value.Type() {
-		case symbolic.IntType, symbolic.FloatType, symbolic.BoolType:
+		case symbolic.IntType:
+			fallthrough
+		case symbolic.FloatType:
+			fallthrough
+		case symbolic.BoolType:
 			typ.Fields[fieldIdx] = symbolic.NewObjectField(value.Type(), nil, nil)
 			holder.FieldsHolder[fieldIdx] = symbolic.NewSymbolicVariable(
 				fmt.Sprintf("$%s%d$%s", typ.Name, fieldIdx, value.Type()),
@@ -289,17 +288,6 @@ func (mem *SymbolicMemory) AssignField(ref *symbolic.Ref, fieldIdx int, value sy
 
 func (mem *SymbolicMemory) GetFieldValue(ref *symbolic.Ref, fieldIdx int) symbolic.SymbolicExpression {
 	holder, _ := mem.ObjectPool[ref.ObjType.Name]
-	typ := holder.ObjectDef
-
-	if cap(typ.Fields) <= fieldIdx {
-		tmp := make([]*symbolic.ObjectField, fieldIdx+1)
-		copy(tmp, typ.Fields)
-		typ.Fields = tmp
-
-		aux := make([]symbolic.SymbolicExpression, fieldIdx+1)
-		copy(aux, holder.FieldsHolder)
-		holder.FieldsHolder = aux
-	}
 
 	f := holder.FieldsHolder[fieldIdx]
 
@@ -317,13 +305,9 @@ func (mem *SymbolicMemory) AssignToArray(ref *symbolic.Ref, index symbolic.Symbo
 	holder, _ := mem.ArrayPool[ref.TypeGeneric.String()]
 
 	holder.Slots = symbolic.NewArrayStore(
-		holder.Slots,
-		symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(ref.Address)),
-		symbolic.NewArrayStore(
-			symbolic.NewArraySelect(holder.Slots, symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(ref.Address))),
-			index,
-			value,
-		),
+		symbolic.NewArraySelect(holder.Slots, symbolic.NewArraySelect(mem.Refs, symbolic.NewIntConstant(ref.Address))),
+		index,
+		value,
 	)
 
 	return holder.Slots
@@ -365,7 +349,11 @@ func (mem *SymbolicMemory) Assign(lhs symbolic.SymbolicExpression, rhs symbolic.
 	ref := lhs.(*symbolic.Ref)
 
 	switch ref.VarType {
-	case symbolic.BoolType, symbolic.IntType, symbolic.FloatType:
+	case symbolic.IntType:
+		fallthrough
+	case symbolic.BoolType:
+		fallthrough
+	case symbolic.FloatType:
 		mem.AssignPrimitive(ref, rhs)
 	default:
 		// TODO: pointers support

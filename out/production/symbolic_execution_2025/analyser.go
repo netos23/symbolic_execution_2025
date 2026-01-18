@@ -20,18 +20,13 @@ type Analyser struct {
 	Z3Translator *translator.Z3Translator
 }
 
-func AnalyseSource(source string, functionName string) []Interpreter {
+func Analyse(source string, functionName string) []Interpreter {
 	funBuilder := builder.NewBuilder()
 	fun, err := funBuilder.ParseAndBuildSSA(source, functionName)
 	if err != nil {
 		panic(err)
 	}
 
-	return Analyse(fun)
-}
-
-func Analyse(fun *ssa.Function) []Interpreter {
-	funBuilder := builder.NewBuilder()
 	funBuilder.PrintBlocksAndInstructions(fun)
 
 	config := z3.NewContextConfig()
@@ -78,8 +73,7 @@ func Analyse(fun *ssa.Function) []Interpreter {
 
 		interpreter := item.value
 		stackFrame := util.Last(interpreter.CallStack)
-		offset := stackFrame.InstructionPointer
-		instructions := stackFrame.Block.Instrs[offset:]
+		instructions := stackFrame.Block.Instrs[stackFrame.InstructionPointer:]
 
 		fmt.Println("Visit block:")
 
@@ -100,8 +94,7 @@ func Analyse(fun *ssa.Function) []Interpreter {
 		funBuilder.PrintBlock(util.IndexOf(stackFrame.Function.Blocks, stackFrame.Block), stackFrame.Block)
 
 		fmt.Println("---------------------------")
-		for i, instr := range instructions {
-			fmt.Printf("visit%d\n", offset+i)
+		for _, instr := range instructions {
 			nextStates := interpreter.interpretDynamically(instr)
 
 			for _, s := range nextStates {
@@ -112,19 +105,18 @@ func Analyse(fun *ssa.Function) []Interpreter {
 			}
 
 			// Для прервываемой стратегии выполнения
-			if len(nextStates) != 0 {
+			/*if len(nextStates) != 0 {
 				// Если количество стейтов отлично от нуля, должны обратиться к пас селектору
 				// Например: вызов функции, ветвление или прыжoк
 				break
-			}
+			}*/
 
 		}
-		fmt.Println("---------------------------")
 
 		// Для прервываемой стратегии выполнения
-		if interpreter.completed() {
-			an.Results = append(an.Results, interpreter)
-		}
+		//if interpreter.completed() {
+		an.Results = append(an.Results, interpreter)
+		//}
 	}
 
 	return an.Results

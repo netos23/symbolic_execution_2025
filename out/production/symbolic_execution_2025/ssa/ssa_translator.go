@@ -31,7 +31,7 @@ func ConvertToSymbolic(param types.Type) (symbolic.ExpressionType, string, *symb
 			return symbolic.IntType, "", nil
 		case types.Bool:
 			return symbolic.BoolType, "", nil
-		case types.Float32, types.Float64, types.UntypedFloat:
+		case types.Float32:
 			return symbolic.FloatType, "", nil
 		default:
 		}
@@ -42,7 +42,6 @@ func ConvertToSymbolic(param types.Type) (symbolic.ExpressionType, string, *symb
 	case *types.Named:
 		return symbolic.ObjectType, t.Obj().Name(), nil
 	case *types.Pointer:
-		return ConvertToSymbolic(t.Elem())
 		elimType, _, elimGeneric := ConvertToSymbolic(t.Elem())
 		return symbolic.RefType, "", &symbolic.GenericType{elimType, nil, elimGeneric}
 	}
