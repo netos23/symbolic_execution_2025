@@ -2,37 +2,28 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"symbolic-execution-course/internal"
 )
 
 func main() {
-	source := `
-package main
-
-
-func CompareWithDiv(a, b float64) float64 {
-	z := a + 0.5
-	if (a / z) > b {
-		return 1.0
-	} else {
-		return 0.0
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: go run main.go <filename> <func> [-v]")
+		os.Exit(1)
 	}
-}
 
-func Mul(a, b float64) float64 {
-	if a*b > 33.32 && a*b < 33.333 {
-		return 1.1
-	} else if a*b > 33.333 && a*b < 33.7592 {
-		return 1.2
-	} else {
-		return 1.3
+	filename := os.Args[1]
+	function := os.Args[2]
+	verbose := false
+	if len(os.Args) > 3 {
+		verbose = true
 	}
-}
 
-`
-
-	result := internal.AnalyseSource(source, "Mul")
-	for _, interpreter := range result {
-		fmt.Println(interpreter)
+	result := internal.AnalyseSource(filename, function, verbose)
+	if verbose {
+		for _, interpreter := range result {
+			fmt.Println(interpreter)
+		}
 	}
+
 }

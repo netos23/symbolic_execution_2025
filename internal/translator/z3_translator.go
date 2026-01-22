@@ -141,6 +141,16 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 			return l.(z3.Int).Eq(r.(z3.Int))
 		case symbolic.NE:
 			return l.(z3.Int).NE(r.(z3.Int))
+		case symbolic.XOR:
+			return (l.(z3.Int).ToBV(64).Xor(r.(z3.Int).ToBV(64))).SToInt()
+		case symbolic.SHL:
+			return (l.(z3.Int).ToBV(64).Lsh(r.(z3.Int).ToBV(64))).SToInt()
+		case symbolic.SHR:
+			return (l.(z3.Int).ToBV(64).SRsh(r.(z3.Int).ToBV(64))).SToInt()
+		case symbolic.IAND:
+			return (l.(z3.Int).ToBV(64).And(r.(z3.Int).ToBV(64))).SToInt()
+		case symbolic.IOR:
+			return (l.(z3.Int).ToBV(64).Or(r.(z3.Int).ToBV(64))).SToInt()
 		}
 	}
 
@@ -319,7 +329,7 @@ func (zt *Z3Translator) createZ3Variable(name string, exprType symbolic.Expressi
 
 func (zt *Z3Translator) sortForType(t symbolic.ExpressionType, generic *symbolic.GenericType) z3.Sort {
 	switch t {
-	case symbolic.IntType:
+	case symbolic.IntType, symbolic.ObjectType, symbolic.RefType:
 		return zt.ctx.IntSort()
 	case symbolic.FloatType:
 		return zt.ctx.FloatSort(11, 53)

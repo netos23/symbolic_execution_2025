@@ -3,7 +3,6 @@ package symbolic
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"symbolic-execution-course/internal/util"
 )
@@ -199,7 +198,7 @@ func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *Bina
 // Type возвращает результирующий тип операции
 func (bo *BinaryOperation) Type() ExpressionType {
 	switch bo.Operator {
-	case ADD, SUB, MUL, DIV, MOD:
+	case ADD, SUB, MUL, DIV, MOD, SHL, SHR, XOR, IAND, IOR:
 		return DeRefType(bo.Left)
 	case EQ, NE, LT, LE, GT, GE:
 		return BoolType
@@ -209,8 +208,7 @@ func (bo *BinaryOperation) Type() ExpressionType {
 }
 
 func DeRefType(e SymbolicExpression) ExpressionType {
-	if e.Type() == RefType {
-		ref := e.(*Ref)
+	if ref, ok := e.(*Ref); ok {
 		return ref.VarType
 	}
 
@@ -237,11 +235,6 @@ type LogicalOperation struct {
 
 // NewLogicalOperation создаёт новую логическую операцию
 func NewLogicalOperation(operands []SymbolicExpression, op LogicalOperator) *LogicalOperation {
-	if slices.ContainsFunc(operands, func(e SymbolicExpression) bool {
-		return e.Type() != BoolType
-	}) {
-		return nil
-	}
 
 	switch op {
 	case NOT:
@@ -321,6 +314,12 @@ const (
 	DIV
 	MOD
 
+	IAND
+	IOR
+	XOR
+	SHL
+	SHR
+
 	// Операторы сравнения
 	EQ // равно
 	NE // не равно
@@ -355,6 +354,17 @@ func (op BinaryOperator) String() string {
 		return ">"
 	case GE:
 		return ">="
+	case IAND:
+		return "&"
+	case IOR:
+		return "|"
+	case XOR:
+		return "^"
+	case SHL:
+		return "<<"
+	case SHR:
+		return ">>"
+
 	default:
 		return "unknown"
 	}
@@ -461,7 +471,7 @@ type UnaryOperation struct {
 
 // NewUnaryOperation создаёт новую бинарную операцию
 func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOperation {
-	switch op {
+	/*switch op {
 	case PLUS:
 		if operand.Type() != IntType && operand.Type() != FloatType {
 			return nil
@@ -482,7 +492,7 @@ func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOpera
 		if operand.Type() != IntType {
 			return nil
 		}
-	}
+	}*/
 
 	return &UnaryOperation{
 		Operand:  operand,
@@ -492,7 +502,7 @@ func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOpera
 
 // Type возвращает результирующий тип операции
 func (uo *UnaryOperation) Type() ExpressionType {
-	return uo.Operand.Type()
+	return DeRefType(uo.Operand)
 }
 
 // String возвращает строковое представление операции
@@ -553,8 +563,14 @@ func GenericFor(arrayType SymbolicExpression) *GenericType {
 
 	for {
 		if inner, ok := tmp.(*ArraySelect); ok {
-			tmp = inner.Array
-			continue
+			//tmp = inner.Array
+			gen := GenericFor(inner.Array)
+
+			if gen == nil {
+				return nil
+			}
+
+			return gen.Generic
 		}
 
 		if inner, ok := tmp.(*ArrayStore); ok {

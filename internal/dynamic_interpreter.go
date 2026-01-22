@@ -3,6 +3,7 @@ package internal
 import (
 	"go/constant"
 	"go/token"
+	"go/types"
 	"golang.org/x/tools/go/ssa"
 	"symbolic-execution-course/internal/memory"
 	builder "symbolic-execution-course/internal/ssa"
@@ -82,6 +83,8 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 		return interpreter.interpretDynamicallyMakeInterface(e)
 	case *ssa.MakeSlice:
 		return interpreter.interpretDynamicallyMakeSlice(e)
+	case *ssa.Slice:
+		return interpreter.interpretDynamicallySlice(e)
 	case *ssa.FieldAddr:
 		return interpreter.interpretDynamicallyFieldAddr(e)
 	case *ssa.Field:
@@ -90,8 +93,9 @@ func (interpreter *Interpreter) interpretDynamically(element ssa.Instruction) []
 		return interpreter.interpretDynamicallyIndexAddr(e)
 	case *ssa.Index:
 		return interpreter.interpretDynamicallyIndex(e)
+
 	default:
-		return []Interpreter{}
+		return interpreter.nextInstruction()
 	}
 }
 
@@ -123,6 +127,8 @@ func (interpreter *Interpreter) resolveExpression(value ssa.Value) symbolic.Symb
 
 	case *ssa.MakeSlice:
 		return interpreter.resolveMakeSlice(v)
+	//case *ssa.Slice:
+	//	return interpreter.resolveSlice(v)
 	default:
 		if expr, ok := frame.LocalMemory[value.Name()]; ok {
 			return expr
@@ -156,11 +162,13 @@ func (interpreter *Interpreter) interpretDynamicallyUnOp(e *ssa.UnOp) []Interpre
 }
 
 func (interpreter *Interpreter) resolveUnOp(e *ssa.UnOp) symbolic.SymbolicExpression {
+	//localMemory := util.Last(interpreter.CallStack).LocalMemory
 
 	var expr symbolic.SymbolicExpression
 	switch e.Op {
-	//case token.NOT:
-	//	expr = symbolic.NewUnaryOperation(v,symbolic.MINUS)
+	case token.NOT:
+		v := interpreter.resolveExpression(e.X)
+		expr = symbolic.NewLogicalOperation([]symbolic.SymbolicExpression{v}, symbolic.NOT)
 	case token.SUB:
 		v := interpreter.resolveExpression(e.X)
 		expr = symbolic.NewUnaryOperation(v, symbolic.MINUS)
@@ -172,15 +180,39 @@ func (interpreter *Interpreter) resolveUnOp(e *ssa.UnOp) symbolic.SymbolicExpres
 		var addrExpr symbolic.SymbolicExpression
 		var indexExpr symbolic.SymbolicExpression
 		switch addrSsa := e.X.(type) {
-		case *ssa.IndexAddr:
+		case *ssa.Slice:
 			addrExpr = interpreter.resolveExpression(addrSsa.X)
+
+			if addrSsa.Low != nil {
+				indexExpr = interpreter.resolveExpression(addrSsa.Low)
+			}
+			if addrSsa.Max != nil {
+				indexExpr = interpreter.resolveExpression(addrSsa.Max)
+			}
+			if addrSsa.High != nil {
+				indexExpr = interpreter.resolveExpression(addrSsa.High)
+			}
+		case *ssa.IndexAddr:
+			exp := addrSsa.X
 			indexExpr = interpreter.resolveExpression(addrSsa.Index)
+			addrExpr = interpreter.resolveExpression(exp)
+
+			/*if refExp, ok := localMemory[exp.Name()]; ok {
+				if ref, ok := refExp.(*symbolic.Ref); ok {
+					addrExpr = ref
+				} else {
+					addrExpr = interpreter.resolveExpression(exp)
+				}
+			} else {
+				addrExpr = interpreter.resolveExpression(exp)
+			}*/
 		case *ssa.FieldAddr:
 			addrExpr = interpreter.resolveExpression(addrSsa.X)
 		default:
 			addrExpr = interpreter.resolveExpression(e.X)
 		}
 
+	start:
 		switch addr := addrExpr.(type) {
 		case *symbolic.Ref:
 			switch addr.VarType {
@@ -193,14 +225,31 @@ func (interpreter *Interpreter) resolveUnOp(e *ssa.UnOp) symbolic.SymbolicExpres
 					fieldIndex := fieldAddr.Field
 					expr = interpreter.Heap.GetFieldValue(addr, fieldIndex)
 				} else {
-					panic("Expected FieldAddr for object field store")
+					panic("Expected FieldAddr for object field Load")
 				}
 			default:
-				panic("Unsupported Ref type in Store")
+				panic("Unsupported Ref type in Load")
 			}
+		case *symbolic.ArraySelect:
 
+			switch addr.Type() {
+			case symbolic.IntType, symbolic.FloatType, symbolic.BoolType:
+				expr = addr
+			case symbolic.ArrayType:
+				if indexExpr != nil {
+					expr = symbolic.NewArraySelect(addr, indexExpr)
+				} else {
+					expr = addr
+				}
+			default:
+				addrExpr = interpreter.Heap.MakeRefRaw(addr)
+				goto start
+			}
+		case *symbolic.FieldRead:
+			addrExpr = addr.RawValue
+			goto start
 		default:
-			panic("Unsupported address expression in Store")
+			panic("Unsupported address expression in Load")
 		}
 
 	case token.XOR:
@@ -222,18 +271,26 @@ func (interpreter *Interpreter) interpretDynamicallyBinOp(e *ssa.BinOp) []Interp
 func (interpreter *Interpreter) assign(name string, expr symbolic.SymbolicExpression) {
 	localMemory := util.Last(interpreter.CallStack).LocalMemory
 	v, hasLocal := localMemory[name]
+	//_, hasLocal := localMemory[name]
 	if hasLocal {
 		localMemory[name] = interpreter.Heap.Assign(v, expr)
+		//localMemory[name] = expr
 	} else {
 		v := expr
 
-		if expr.Type() != symbolic.RefType {
+		switch expr.Type() {
+		case symbolic.IntType, symbolic.BoolType, symbolic.FloatType:
 			v = interpreter.Heap.Allocate(
 				expr.Type(), symbolic.ObjectNameFor(expr), symbolic.GenericFor(expr),
 			)
+			v = interpreter.Heap.Assign(v, expr)
+		case symbolic.RefType:
+		default:
+			v = interpreter.Heap.MakeRefRaw(expr)
 		}
 
-		localMemory[name] = interpreter.Heap.Assign(v, expr)
+		localMemory[name] = v
+		//localMemory[name] = expr
 	}
 }
 
@@ -254,18 +311,18 @@ func (interpreter *Interpreter) resolveBinOp(e *ssa.BinOp) symbolic.SymbolicExpr
 	case token.REM:
 		expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.MOD)
 	// TODO: Add bit operator support
-	/*	case token.AND:
-			expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.AND)
-		case token.OR:
-			expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.OR)
-		case token.XOR:
-			expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.XOR)
-		case token.SHL:
-			expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.SHL)
-		case token.SHR:
-			expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.SHR)
-		case token.AND_NOT:
-			expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.AND_NOT)*/
+	/* case token.AND_NOT:
+	expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.AND_NOT)*/
+	case token.AND:
+		expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.IAND)
+	case token.OR:
+		expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.IOR)
+	case token.XOR:
+		expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.XOR)
+	case token.SHL:
+		expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.SHL)
+	case token.SHR:
+		expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.SHR)
 	case token.EQL:
 		expr = symbolic.NewBinaryOperation(lhs, rhs, symbolic.EQ)
 	case token.LSS:
@@ -377,6 +434,12 @@ func (interpreter *Interpreter) resolveConst(v *ssa.Const) symbolic.SymbolicExpr
 
 func (interpreter *Interpreter) interpretDynamicallyCall(e *ssa.Call) []Interpreter {
 
+	if builtin, ok := e.Call.Value.(*ssa.Builtin); ok && builtin.Name() == "len" {
+		call := interpreter.resolveBuiltinLenCall(e)
+		interpreter.assign(e.Name(), call)
+		return interpreter.nextInstruction()
+	}
+
 	var callee *ssa.Function
 	if e.Call.StaticCallee() != nil {
 		callee = e.Call.StaticCallee()
@@ -466,6 +529,7 @@ func (interpreter *Interpreter) interpretDynamicallyStore(e *ssa.Store) []Interp
 
 	valExpr := interpreter.resolveExpression(e.Val)
 
+start:
 	switch addr := addrExpr.(type) {
 	case *symbolic.Ref:
 		switch addr.VarType {
@@ -478,12 +542,21 @@ func (interpreter *Interpreter) interpretDynamicallyStore(e *ssa.Store) []Interp
 				fieldIndex := fieldAddr.Field
 				interpreter.Heap.AssignField(addr, fieldIndex, valExpr)
 			} else {
-				panic("Expected FieldAddr for object field store")
+				interpreter.assign(e.Addr.Name(), valExpr)
 			}
 		default:
 			panic("Unsupported Ref type in Store")
 		}
-
+	case *symbolic.ArraySelect:
+		switch addr.Type() {
+		case symbolic.ArrayType:
+			interpreter.assign(e.Addr.Name(), symbolic.NewArrayStore(addr, indexExpr, valExpr))
+		default:
+			addrExpr = interpreter.Heap.MakeRefRaw(addr)
+			goto start
+		}
+	case *symbolic.FieldRead:
+		interpreter.Heap.AssignField(addr.Obj.(*symbolic.Ref), addr.Index, valExpr)
 	default:
 		panic("Unsupported address expression in Store")
 	}
@@ -510,7 +583,9 @@ func (interpreter *Interpreter) interpretDynamicallyPhi(e *ssa.Phi) []Interprete
 		}
 	}
 
-	panic("No matching predecessor found in call stack for Phi node")
+	frame.LocalMemory[e.Name()] = interpreter.resolveExpression(e.Edges[0])
+
+	return interpreter.nextInstruction()
 }
 
 func (interpreter *Interpreter) interpretDynamicallyChangeType(e *ssa.ChangeType) []Interpreter {
@@ -545,7 +620,15 @@ func (interpreter *Interpreter) interpretDynamicallyFieldAddr(e *ssa.FieldAddr) 
 
 	base := interpreter.resolveExpression(e.X)
 	fieldIndex := e.Field
-	fieldValue := interpreter.Heap.GetFieldValue(base.(*symbolic.Ref), fieldIndex)
+	var fieldValue symbolic.SymbolicExpression
+	switch ref := base.(type) {
+	case *symbolic.Ref:
+		fieldValue = interpreter.Heap.GetFieldValue(ref, fieldIndex)
+	case *symbolic.ArraySelect:
+		symRef := interpreter.Heap.MakeRefRaw(ref)
+		fieldValue = interpreter.Heap.GetFieldValue(symRef, fieldIndex)
+	}
+
 	frame.LocalMemory[e.Name()] = fieldValue
 
 	return interpreter.nextInstruction()
@@ -564,14 +647,21 @@ func (interpreter *Interpreter) interpretDynamicallyField(e *ssa.Field) []Interp
 
 func (interpreter *Interpreter) interpretDynamicallyIndexAddr(e *ssa.IndexAddr) []Interpreter {
 	// suppresed see store/load
-	/*frame := util.Last(interpreter.CallStack)
+	frame := util.Last(interpreter.CallStack)
 
 	base := interpreter.resolveExpression(e.X)
 	index := interpreter.resolveExpression(e.Index)
 
 	// todo custom type
-	value := symbolic.NewArraySelect(base, index)
+	/*var value symbolic.SymbolicExpression
+	value = symbolic.NewArraySelect(base, index)
+	switch value.Type() {
+	case symbolic.IntType, symbolic.BoolType, symbolic.FloatType:
+	default:
+		value = interpreter.Heap.MakeRefRaw(value)
+	}
 	frame.LocalMemory[e.Name()] = value*/
+	frame.LocalMemory[e.Name()] = symbolic.NewArraySelect(base, index)
 
 	return interpreter.nextInstruction()
 }
@@ -593,6 +683,48 @@ func (interpreter *Interpreter) interpretDynamicallyMakeSlice(e *ssa.MakeSlice) 
 
 	value := interpreter.Heap.Allocate(builder.ConvertToSymbolic(e.Type()))
 	frame.LocalMemory[e.Name()] = value
+
+	return interpreter.nextInstruction()
+}
+
+func (interpreter *Interpreter) resolveSlice(v *ssa.Slice) symbolic.SymbolicExpression {
+	array := interpreter.resolveExpression(v.X)
+
+	var index symbolic.SymbolicExpression
+
+	if v.Low != nil {
+		index = interpreter.resolveExpression(v.Low)
+	}
+
+	if v.Max != nil {
+		index = interpreter.resolveExpression(v.Max)
+	}
+
+	if v.High != nil {
+		index = interpreter.resolveExpression(v.High)
+	}
+
+	return interpreter.Heap.GetFromArray(array.(*symbolic.Ref), index)
+}
+
+func (interpreter *Interpreter) interpretDynamicallySlice(e *ssa.Slice) []Interpreter {
+	frame := util.Last(interpreter.CallStack)
+
+	expression := interpreter.resolveExpression(e.X)
+
+	if ref, ok := expression.(*symbolic.Ref); ok {
+		if high, ok := e.High.(*ssa.Const); ok {
+			for i := int64(0); i < high.Int64(); i++ {
+				interpreter.Heap.AssignToArray(
+					ref,
+					symbolic.NewIntConstant(i),
+					builder.DefaultSymbolic(e.Type().(*types.Slice).Elem()),
+				)
+			}
+		}
+	}
+
+	frame.LocalMemory[e.Name()] = expression
 
 	return interpreter.nextInstruction()
 }
