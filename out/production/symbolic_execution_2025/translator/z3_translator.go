@@ -16,7 +16,6 @@ type Z3Translator struct {
 	config *z3.Config
 	vars   map[string]z3.Value // Кэш переменных
 	funcs  map[string]z3.FuncDecl
-	trace  bool
 }
 
 // NewZ3Translator создаёт новый экземпляр Z3 транслятора
@@ -26,19 +25,7 @@ func NewZ3Translator(ctx *z3.Context, config *z3.Config) *Z3Translator {
 		config: config,
 		vars:   make(map[string]z3.Value),
 		funcs:  make(map[string]z3.FuncDecl),
-		trace:  false,
 	}
-}
-
-func (zt *Z3Translator) printTrace(expr symbolic.SymbolicExpression) {
-	if !zt.trace {
-		return
-	}
-	fmt.Println("-----")
-	fmt.Printf("Expr: %T: %#v\n", expr, expr)
-	//fmt.Printf("Expr: %s\n: ", expr)
-	fmt.Printf("ExprType: %v\n", expr.Type())
-	fmt.Println("-----")
 }
 
 // GetContext возвращает Z3 контекст
@@ -65,7 +52,7 @@ func (zt *Z3Translator) TranslateExpression(expr symbolic.SymbolicExpression) (i
 
 // VisitVariable транслирует символьную переменную в Z3
 func (zt *Z3Translator) VisitVariable(expr *symbolic.SymbolicVariable) interface{} {
-	zt.printTrace(expr)
+
 	// Подсказки:
 	// - Используйте zt.ctx.IntConst(name) для int переменных
 	// - Используйте zt.ctx.BoolConst(name) для bool переменных
@@ -80,7 +67,6 @@ func (zt *Z3Translator) VisitVariable(expr *symbolic.SymbolicVariable) interface
 
 // VisitIntConstant транслирует целочисленную константу в Z3
 func (zt *Z3Translator) VisitIntConstant(expr *symbolic.IntConstant) interface{} {
-	zt.printTrace(expr)
 	// Создать Z3 константу с помощью zt.ctx.FromBigInt или аналогичного метода
 
 	return zt.ctx.FromBigInt(big.NewInt(expr.Value), zt.ctx.IntSort())
@@ -88,7 +74,6 @@ func (zt *Z3Translator) VisitIntConstant(expr *symbolic.IntConstant) interface{}
 
 // VisitFloatConstant транслирует константу с плавающей точкой в Z3
 func (zt *Z3Translator) VisitFloatConstant(expr *symbolic.FloatConstant) interface{} {
-	zt.printTrace(expr)
 	// Создать Z3 константу с помощью zt.ctx.FromBigInt или аналогичного метода
 
 	return zt.ctx.FromFloat64(expr.Value, zt.ctx.FloatSort(11, 53))
@@ -96,7 +81,6 @@ func (zt *Z3Translator) VisitFloatConstant(expr *symbolic.FloatConstant) interfa
 
 // VisitBoolConstant транслирует булеву константу в Z3
 func (zt *Z3Translator) VisitBoolConstant(expr *symbolic.BoolConstant) interface{} {
-	zt.printTrace(expr)
 	// Использовать zt.ctx.FromBool для создания Z3 булевой константы
 
 	return zt.ctx.FromBool(expr.Value)
@@ -104,7 +88,6 @@ func (zt *Z3Translator) VisitBoolConstant(expr *symbolic.BoolConstant) interface
 
 // VisitBinaryOperation транслирует бинарную операцию в Z3
 func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) interface{} {
-	zt.printTrace(expr)
 	// TODO: Реализовать
 	// 1. Транслировать левый и правый операнды
 	// 2. В зависимости от оператора создать соответствующую Z3 операцию
@@ -141,16 +124,6 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 			return l.(z3.Int).Eq(r.(z3.Int))
 		case symbolic.NE:
 			return l.(z3.Int).NE(r.(z3.Int))
-		case symbolic.XOR:
-			return (l.(z3.Int).ToBV(64).Xor(r.(z3.Int).ToBV(64))).SToInt()
-		case symbolic.SHL:
-			return (l.(z3.Int).ToBV(64).Lsh(r.(z3.Int).ToBV(64))).SToInt()
-		case symbolic.SHR:
-			return (l.(z3.Int).ToBV(64).SRsh(r.(z3.Int).ToBV(64))).SToInt()
-		case symbolic.IAND:
-			return (l.(z3.Int).ToBV(64).And(r.(z3.Int).ToBV(64))).SToInt()
-		case symbolic.IOR:
-			return (l.(z3.Int).ToBV(64).Or(r.(z3.Int).ToBV(64))).SToInt()
 		}
 	}
 
@@ -203,7 +176,7 @@ func (zt *Z3Translator) VisitBinaryOperation(expr *symbolic.BinaryOperation) int
 
 // VisitLogicalOperation транслирует логическую операцию в Z3
 func (zt *Z3Translator) VisitLogicalOperation(expr *symbolic.LogicalOperation) interface{} {
-	zt.printTrace(expr)
+
 	// Подсказки:
 	// - AND: zt.ctx.And(operands...)
 	// - OR: zt.ctx.Or(operands...)
@@ -229,7 +202,6 @@ func (zt *Z3Translator) VisitLogicalOperation(expr *symbolic.LogicalOperation) i
 }
 
 func (zt *Z3Translator) VisitUnaryOperation(expr *symbolic.UnaryOperation) interface{} {
-	zt.printTrace(expr)
 	operand := expr.Operand.Accept(zt)
 	switch expr.Operator {
 	case symbolic.PLUS:
@@ -251,7 +223,6 @@ func (zt *Z3Translator) VisitUnaryOperation(expr *symbolic.UnaryOperation) inter
 	panic("unsupported unary operator")
 }
 func (zt *Z3Translator) VisitConditionalExpression(expr *symbolic.ConditionalExpression) interface{} {
-	zt.printTrace(expr)
 	cond := expr.Condition.Accept(zt).(z3.Bool)
 	then := expr.Then.Accept(zt).(z3.Value)
 	elze := expr.Else.Accept(zt).(z3.Value)
@@ -260,7 +231,6 @@ func (zt *Z3Translator) VisitConditionalExpression(expr *symbolic.ConditionalExp
 
 }
 func (zt *Z3Translator) VisitFunction(expr *symbolic.Function) interface{} {
-	zt.printTrace(expr)
 	if v, hasCache := zt.funcs[expr.Name]; hasCache {
 		return v
 	}
@@ -277,7 +247,6 @@ func (zt *Z3Translator) VisitFunction(expr *symbolic.Function) interface{} {
 }
 
 func (zt *Z3Translator) VisitFunctionCall(expr *symbolic.FunctionCall) interface{} {
-	zt.printTrace(expr)
 	fun := expr.Func.Accept(zt).(z3.FuncDecl)
 
 	args := util.Convert(expr.Args, func(e symbolic.SymbolicExpression) z3.Value {
@@ -288,7 +257,6 @@ func (zt *Z3Translator) VisitFunctionCall(expr *symbolic.FunctionCall) interface
 }
 
 func (zt *Z3Translator) VisitArraySelect(expr *symbolic.ArraySelect) interface{} {
-	zt.printTrace(expr)
 	arr := expr.Array.Accept(zt).(z3.Array)
 	i := expr.Index.Accept(zt).(z3.Int)
 
@@ -296,7 +264,6 @@ func (zt *Z3Translator) VisitArraySelect(expr *symbolic.ArraySelect) interface{}
 }
 
 func (zt *Z3Translator) VisitArrayStore(expr *symbolic.ArrayStore) interface{} {
-	zt.printTrace(expr)
 	arr := expr.Array.Accept(zt).(z3.Array)
 	i := expr.Index.Accept(zt).(z3.Int)
 	v := expr.Value.Accept(zt).(z3.Value)
@@ -305,16 +272,12 @@ func (zt *Z3Translator) VisitArrayStore(expr *symbolic.ArrayStore) interface{} {
 }
 
 func (zt *Z3Translator) VisitRef(ref *symbolic.Ref) interface{} {
-	zt.printTrace(ref)
-
 	return ref.Deref.Accept(zt)
 }
 func (zt *Z3Translator) VisitFieldRead(f *symbolic.FieldRead) interface{} {
-	zt.printTrace(f)
 	return f.RawValue.Accept(zt)
 }
 func (zt *Z3Translator) VisitFieldWrite(f *symbolic.FieldWrite) interface{} {
-	zt.printTrace(f)
 	return f.RawValue.Accept(zt)
 }
 
@@ -329,7 +292,7 @@ func (zt *Z3Translator) createZ3Variable(name string, exprType symbolic.Expressi
 
 func (zt *Z3Translator) sortForType(t symbolic.ExpressionType, generic *symbolic.GenericType) z3.Sort {
 	switch t {
-	case symbolic.IntType, symbolic.ObjectType, symbolic.RefType:
+	case symbolic.IntType:
 		return zt.ctx.IntSort()
 	case symbolic.FloatType:
 		return zt.ctx.FloatSort(11, 53)

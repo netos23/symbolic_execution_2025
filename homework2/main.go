@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ebukreev/go-z3/z3"
 	"log"
 	"symbolic-execution-course/internal/symbolic"
 	"symbolic-execution-course/internal/translator"
@@ -25,8 +26,10 @@ func main() {
 	fmt.Printf("Выражение: %s\n", condition.String())
 	fmt.Printf("Тип выражения: %s\n", condition.Type().String())
 
+	config := z3.NewContextConfig()
+	ctx := z3.NewContext(config)
 	// Создаём Z3 транслятор
-	translator := translator.NewZ3Translator()
+	translator := translator.NewZ3Translator(ctx, config)
 	defer translator.Close()
 
 	// Транслируем в Z3

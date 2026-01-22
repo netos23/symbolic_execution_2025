@@ -40,10 +40,6 @@ type Object struct {
 }
 
 func NewObject(name string) *Object {
-	if name == "" {
-		return nil
-	}
-
 	return &Object{
 		Name:   name,
 		Fields: make([]*ObjectField, 0),
@@ -57,16 +53,8 @@ type GenericType struct {
 }
 
 func (g *GenericType) String() string {
-	if g == nil {
-		return ""
-	}
-
 	if g.Generic == nil {
 		return g.ExprType.String()
-	}
-
-	if g.ObjectType != nil {
-		return fmt.Sprintf("%s-%s", g.ExprType.String(), g.ObjectType.Name)
 	}
 
 	return fmt.Sprintf("%s[%s]", g.ExprType.String(), g.Generic.String())
@@ -83,8 +71,6 @@ func (et ExpressionType) String() string {
 		return "bool"
 	case ArrayType:
 		return "array"
-	case ObjectType:
-		return "object"
 	default:
 		return "unknown"
 	}

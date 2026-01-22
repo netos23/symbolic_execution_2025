@@ -3,6 +3,7 @@ package symbolic
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"symbolic-execution-course/internal/util"
 )
@@ -136,57 +137,57 @@ type BinaryOperation struct {
 
 // NewBinaryOperation создаёт новую бинарную операцию
 func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *BinaryOperation {
-	/*
-		if DeRefType(left) != DeRefType(right) {
+
+	if DeRefType(left) != DeRefType(right) {
+		return nil
+	}
+
+	switch op {
+	case ADD:
+		if left.Type() == BoolType {
 			return nil
 		}
 
-		switch op {
-		case ADD:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case SUB:
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case SUB:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case MUL:
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case MUL:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case DIV:
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case DIV:
-			if left.Type() == BoolType {
-				return nil
-			}
+		if left.Type() == ArrayType {
+			return nil
+		}
+	case MOD:
+		if left.Type() == FloatType {
+			return nil
+		}
 
-			if left.Type() == ArrayType {
-				return nil
-			}
-		case MOD:
-			if left.Type() == FloatType {
-				return nil
-			}
+		if left.Type() == BoolType {
+			return nil
+		}
 
-			if left.Type() == BoolType {
-				return nil
-			}
-
-			if left.Type() == ArrayType {
-				return nil
-			}
-		}*/
+		if left.Type() == ArrayType {
+			return nil
+		}
+	}
 
 	return &BinaryOperation{
 		Operator: op,
@@ -198,7 +199,7 @@ func NewBinaryOperation(left, right SymbolicExpression, op BinaryOperator) *Bina
 // Type возвращает результирующий тип операции
 func (bo *BinaryOperation) Type() ExpressionType {
 	switch bo.Operator {
-	case ADD, SUB, MUL, DIV, MOD, SHL, SHR, XOR, IAND, IOR:
+	case ADD, SUB, MUL, DIV, MOD:
 		return DeRefType(bo.Left)
 	case EQ, NE, LT, LE, GT, GE:
 		return BoolType
@@ -208,7 +209,8 @@ func (bo *BinaryOperation) Type() ExpressionType {
 }
 
 func DeRefType(e SymbolicExpression) ExpressionType {
-	if ref, ok := e.(*Ref); ok {
+	if e.Type() == RefType {
+		ref := e.(*Ref)
 		return ref.VarType
 	}
 
@@ -235,6 +237,11 @@ type LogicalOperation struct {
 
 // NewLogicalOperation создаёт новую логическую операцию
 func NewLogicalOperation(operands []SymbolicExpression, op LogicalOperator) *LogicalOperation {
+	if slices.ContainsFunc(operands, func(e SymbolicExpression) bool {
+		return e.Type() != BoolType
+	}) {
+		return nil
+	}
 
 	switch op {
 	case NOT:
@@ -314,12 +321,6 @@ const (
 	DIV
 	MOD
 
-	IAND
-	IOR
-	XOR
-	SHL
-	SHR
-
 	// Операторы сравнения
 	EQ // равно
 	NE // не равно
@@ -354,17 +355,6 @@ func (op BinaryOperator) String() string {
 		return ">"
 	case GE:
 		return ">="
-	case IAND:
-		return "&"
-	case IOR:
-		return "|"
-	case XOR:
-		return "^"
-	case SHL:
-		return "<<"
-	case SHR:
-		return ">>"
-
 	default:
 		return "unknown"
 	}
@@ -471,7 +461,7 @@ type UnaryOperation struct {
 
 // NewUnaryOperation создаёт новую бинарную операцию
 func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOperation {
-	/*switch op {
+	switch op {
 	case PLUS:
 		if operand.Type() != IntType && operand.Type() != FloatType {
 			return nil
@@ -492,7 +482,7 @@ func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOpera
 		if operand.Type() != IntType {
 			return nil
 		}
-	}*/
+	}
 
 	return &UnaryOperation{
 		Operand:  operand,
@@ -502,7 +492,7 @@ func NewUnaryOperation(operand SymbolicExpression, op UnaryOperator) *UnaryOpera
 
 // Type возвращает результирующий тип операции
 func (uo *UnaryOperation) Type() ExpressionType {
-	return DeRefType(uo.Operand)
+	return uo.Operand.Type()
 }
 
 // String возвращает строковое представление операции
@@ -563,14 +553,8 @@ func GenericFor(arrayType SymbolicExpression) *GenericType {
 
 	for {
 		if inner, ok := tmp.(*ArraySelect); ok {
-			//tmp = inner.Array
-			gen := GenericFor(inner.Array)
-
-			if gen == nil {
-				return nil
-			}
-
-			return gen.Generic
+			tmp = inner.Array
+			continue
 		}
 
 		if inner, ok := tmp.(*ArrayStore); ok {

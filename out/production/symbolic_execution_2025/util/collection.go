@@ -30,8 +30,8 @@ func FirstOrNil[E any](data []*E) *E {
 	return data[0]
 }
 
-func Last[E any](data []E) *E {
-	return &data[len(data)-1]
+func Last[E any](data []E) E {
+	return data[len(data)-1]
 }
 
 func IndexOf[E any](data []*E, v *E) int {

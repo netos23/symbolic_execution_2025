@@ -18,21 +18,16 @@ type Analyser struct {
 	PathSelector PathSelector
 	Results      []Interpreter
 	Z3Translator *translator.Z3Translator
-	Verbose      bool
 }
 
-func AnalyseSource(source string, functionName string, v bool) []Interpreter {
+func Analyse(source string, functionName string) []Interpreter {
 	funBuilder := builder.NewBuilder()
-	fun, err := funBuilder.ParseAndBuildSSAPackage(source, functionName)
+	fun, err := funBuilder.ParseAndBuildSSA(source, functionName)
 	if err != nil {
 		panic(err)
 	}
 
-	return Analyse(fun, v)
-}
-
-func Analyse(fun *ssa.Function, v bool) []Interpreter {
-	funBuilder := builder.NewBuilder()
+	funBuilder.PrintBlocksAndInstructions(fun)
 
 	config := z3.NewContextConfig()
 	ctx := z3.NewContext(config)
@@ -48,11 +43,6 @@ func Analyse(fun *ssa.Function, v bool) []Interpreter {
 		Results:      make([]Interpreter, 0),
 		PathSelector: &DfsPathSelector{0},
 		Z3Translator: tr,
-		Verbose:      v,
-	}
-
-	if an.Verbose {
-		funBuilder.PrintBlocksAndInstructions(fun)
 	}
 
 	mem := memory.NewSymbolicMemory()
@@ -83,12 +73,9 @@ func Analyse(fun *ssa.Function, v bool) []Interpreter {
 
 		interpreter := item.value
 		stackFrame := util.Last(interpreter.CallStack)
-		offset := stackFrame.InstructionPointer
-		instructions := stackFrame.Block.Instrs[offset:]
+		instructions := stackFrame.Block.Instrs[stackFrame.InstructionPointer:]
 
-		if an.Verbose {
-			fmt.Println("Visit block:")
-		}
+		fmt.Println("Visit block:")
 
 		reachable := true
 		if interpreter.PathCondition != nil {
@@ -99,22 +86,15 @@ func Analyse(fun *ssa.Function, v bool) []Interpreter {
 			reachable = sat
 			solver.Pop()
 
-			if an.Verbose {
-				fmt.Printf("Path conditions: %s\n", interpreter.PathCondition.String())
-				fmt.Printf("Path SAT: %b\n", reachable)
-				fmt.Println("---------------------------")
-			}
-		}
-
-		if an.Verbose {
-			funBuilder.PrintBlock(util.IndexOf(stackFrame.Function.Blocks, stackFrame.Block), stackFrame.Block)
+			fmt.Printf("Path conditions: %s\n", interpreter.PathCondition.String())
+			fmt.Printf("Path SAT: %b\n", reachable)
 			fmt.Println("---------------------------")
 		}
 
-		for i, instr := range instructions {
-			if an.Verbose {
-				fmt.Printf("visit%d\n", offset+i)
-			}
+		funBuilder.PrintBlock(util.IndexOf(stackFrame.Function.Blocks, stackFrame.Block), stackFrame.Block)
+
+		fmt.Println("---------------------------")
+		for _, instr := range instructions {
 			nextStates := interpreter.interpretDynamically(instr)
 
 			for _, s := range nextStates {
@@ -125,21 +105,18 @@ func Analyse(fun *ssa.Function, v bool) []Interpreter {
 			}
 
 			// Для прервываемой стратегии выполнения
-			if len(nextStates) != 0 {
+			/*if len(nextStates) != 0 {
 				// Если количество стейтов отлично от нуля, должны обратиться к пас селектору
 				// Например: вызов функции, ветвление или прыжoк
 				break
-			}
+			}*/
 
-		}
-		if an.Verbose {
-			fmt.Println("---------------------------")
 		}
 
 		// Для прервываемой стратегии выполнения
-		if interpreter.completed() {
-			an.Results = append(an.Results, interpreter)
-		}
+		//if interpreter.completed() {
+		an.Results = append(an.Results, interpreter)
+		//}
 	}
 
 	return an.Results

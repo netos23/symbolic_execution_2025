@@ -1,0 +1,27 @@
+name: Run Final Tests
+
+on:
+  push:
+    paths:
+      - '**.go'
+      - '.github/workflows/**'
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.25.3
+    steps:
+      - name: Install Z3
+        run: |
+          apt-get update
+          apt-get install -y libz3-dev z3
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download Go modules
+        run: go mod download
+      - name: Build and run final_tests_runner.go
+        run: go run -buildvcs=false test/final_tests_runner.go
+      - name: Build and run final_tests_runner.go with extra logs
+        run: go run -buildvcs=false test/final_tests_runner.go -v
